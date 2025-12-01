@@ -1,0 +1,39 @@
+# F.R.I.D.A.Y. - Female Replacement Intelligent Digital Assistant Youth
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual environments
+venv/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local data (user-specific)
+*.db
+*.log
+
+# Don't commit API keys!
+.env

@@ -1,0 +1,107 @@
+name: Build F.R.I.D.A.Y. for Windows
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'alpha-v*'
+      - 'beta-v*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., alpha-v1, beta-v1, v1.0.0)'
+        required: false
+        default: ''
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install customtkinter pillow
+        pip install SpeechRecognition pyaudio pyttsx3 edge-tts
+        pip install openai google-generativeai
+        pip install requests psutil python-dateutil
+        pip install duckduckgo-search sqlalchemy
+        pip install pygame keyboard
+    
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller --name="FRIDAY" --onefile --windowed --noconfirm --clean --hidden-import=customtkinter --hidden-import=PIL --hidden-import=PIL._tkinter_finder --hidden-import=speech_recognition --hidden-import=pyttsx3 --hidden-import=edge_tts --hidden-import=openai --hidden-import=requests --hidden-import=psutil --hidden-import=dateutil --hidden-import=pygame --hidden-import=keyboard --hidden-import=settings --hidden-import=translations --hidden-import=splash --hidden-import=wave --hidden-import=struct --hidden-import=json --hidden-import=threading --hidden-import=math --collect-all=customtkinter --collect-all=edge_tts main.py
+      shell: cmd
+    
+    - name: Get version tag
+      id: version
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          echo "IS_RELEASE=true" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "IS_RELEASE=true" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=dev-build" >> $GITHUB_OUTPUT
+          echo "IS_RELEASE=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Upload Windows Executable (Artifact)
+      if: steps.version.outputs.IS_RELEASE == 'false'
+      uses: actions/upload-artifact@v4
+      with:
+        name: FRIDAY-Windows
+        path: dist/FRIDAY.exe
+    
+    - name: Create Release
+      if: steps.version.outputs.IS_RELEASE == 'true'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.VERSION }}
+        name: F.R.I.D.A.Y. ${{ steps.version.outputs.VERSION }}
+        body: |
+          ## 🤖 F.R.I.D.A.Y. AI Assistant
+          
+          **Version:** ${{ steps.version.outputs.VERSION }}
+          
+          ### ✨ Features
+          - 🎤 Irish female voice (Kerry Condon style from Iron Man)
+          - 🧠 OpenAI GPT-4o powered intelligent responses
+          - 🗣️ Voice activation with "Friday"
+          - ⚡ Fast, optimized response times
+          - 💬 Natural language processing
+          - 📝 Word-by-word text display synced with speech
+          
+          ### 📦 Installation
+          1. Download `FRIDAY.exe` below
+          2. Run the executable
+          3. Click ⚙️ Settings to configure
+          4. (Optional) Add your OpenAI API key for AI responses
+          5. Say "Friday" to activate!
+          
+          ### 💻 Requirements
+          - Windows 10/11 (64-bit)
+          - Microphone for voice input
+          - Speakers/headphones for audio output
+          - OpenAI API key (optional but recommended)
+          
+          ### 🆕 What's New
+          Check the commit history for detailed changes in this version.
+          
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.VERSION, 'alpha') || contains(steps.version.outputs.VERSION, 'beta') }}
+        files: |
+          dist/FRIDAY.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

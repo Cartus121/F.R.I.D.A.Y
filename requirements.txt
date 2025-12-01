@@ -1,0 +1,47 @@
+# F.R.I.D.A.Y. Requirements
+# Female Replacement Intelligent Digital Assistant Youth
+
+# Core AI and NLP
+openai>=1.0.0
+google-generativeai>=0.3.0
+
+# Speech Recognition
+SpeechRecognition>=3.10.0
+pyaudio>=0.2.13
+
+# Text-to-Speech
+pyttsx3>=2.90
+edge-tts>=6.1.0
+
+# GUI
+customtkinter>=5.2.0
+Pillow>=10.0.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
+pymysql>=1.1.0
+
+# Calendar and Time
+icalendar>=5.0.0
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Utilities
+requests>=2.31.0
+python-dotenv>=1.0.0
+schedule>=1.2.0
+psutil>=5.9.0
+geocoder>=1.38.1
+
+# Web Search
+duckduckgo-search>=4.0.0
+
+# Audio (Windows)
+pygame>=2.5.0
+
+# Hotkeys (optional)
+keyboard>=0.13.5
+
+# Notifications (Windows, optional)
+win10toast>=0.9

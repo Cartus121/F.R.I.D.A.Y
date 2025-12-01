@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=F.R.I.D.A.Y. Assistant
+Comment=Female Replacement Intelligent Digital Assistant Youth - AI Voice Assistant
+Exec=bash -c "cd ~/friday-assistant && source venv/bin/activate && python main.py"
+Icon=microphone
+Terminal=false
+Type=Application
+Categories=Utility;
+StartupNotify=true
