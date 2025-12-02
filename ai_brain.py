@@ -84,6 +84,7 @@ def _get_gemini_api_key():
 
 try:
     import google.generativeai as genai
+    GENAI_AVAILABLE = True
     gemini_key = _get_gemini_api_key()
     if gemini_key:
         genai.configure(api_key=gemini_key)
@@ -93,9 +94,12 @@ try:
         print("[OK] Gemini Pro connected (FREE)")
     else:
         print("[!] Gemini API key not found - get FREE key at ai.google.dev")
+        print("    Go to: https://ai.google.dev/ -> Get API key")
 except ImportError:
+    GENAI_AVAILABLE = False
     print("[!] Gemini library missing - pip install google-generativeai")
 except Exception as e:
+    GENAI_AVAILABLE = True  # Library exists but other error
     print(f"[!] Gemini error: {e}")
 
 
@@ -132,38 +136,59 @@ class AIBrain:
         
         # Determine which AI to use based on settings
         preferred = get_preferred_provider()
+        print(f"[AI] Preferred provider from settings: {preferred}")
+        print(f"[AI] Gemini available: {GEMINI_AVAILABLE}, OpenAI available: {OPENAI_AVAILABLE}")
         
-        if preferred == "gemini" and GEMINI_AVAILABLE:
-            self.ai_provider = "gemini"
-            print("Using Google Gemini Pro (selected)")
-        elif preferred == "openai" and OPENAI_AVAILABLE:
-            self.ai_provider = "openai"
-            self.openai_client = openai_client
-            print("Using OpenAI GPT-4o (selected)")
+        if preferred == "gemini":
+            if GEMINI_AVAILABLE:
+                self.ai_provider = "gemini"
+                print("[OK] Using Google Gemini Pro (selected)")
+            else:
+                print("[!] Gemini selected but not available - check your Gemini API key!")
+                if OPENAI_AVAILABLE:
+                    self.ai_provider = "openai"
+                    self.openai_client = openai_client
+                    print("[OK] Falling back to OpenAI GPT-4o")
+                else:
+                    self.ai_provider = "local"
+                    print("[!] No AI available - add API keys in settings")
+        elif preferred == "openai":
+            if OPENAI_AVAILABLE:
+                self.ai_provider = "openai"
+                self.openai_client = openai_client
+                print("[OK] Using OpenAI GPT-4o (selected)")
+            else:
+                print("[!] OpenAI selected but not available - check your OpenAI API key!")
+                if GEMINI_AVAILABLE:
+                    self.ai_provider = "gemini"
+                    print("[OK] Falling back to Gemini Pro (FREE)")
+                else:
+                    self.ai_provider = "local"
+                    print("[!] No AI available - add API keys in settings")
         elif preferred == "auto":
             # Auto mode: prefer Gemini (free), fallback to OpenAI
             if GEMINI_AVAILABLE:
                 self.ai_provider = "gemini"
-                print("Using Google Gemini Pro (FREE)")
+                print("[OK] Using Google Gemini Pro (FREE - auto)")
             elif OPENAI_AVAILABLE:
                 self.ai_provider = "openai"
                 self.openai_client = openai_client
-                print("Using OpenAI GPT-4o (fallback)")
+                print("[OK] Using OpenAI GPT-4o (fallback)")
             else:
                 self.ai_provider = "local"
-                print("Using local responses (no AI API configured)")
+                print("[!] No AI configured - add API keys in settings")
         else:
-            # Fallback if preferred not available
+            # Unknown preference - use whatever is available
             if GEMINI_AVAILABLE:
                 self.ai_provider = "gemini"
-                print(f"Using Gemini (preferred '{preferred}' not available)")
+                print(f"[OK] Using Gemini (unknown preference '{preferred}')")
             elif OPENAI_AVAILABLE:
                 self.ai_provider = "openai"
                 self.openai_client = openai_client
-                print(f"Using OpenAI (preferred '{preferred}' not available)")
+                print(f"[OK] Using OpenAI (unknown preference '{preferred}')")
             else:
                 self.ai_provider = "local"
-                print("Using local responses (no AI API configured)")
+                print("[!] No AI configured - add API keys in settings")
         
         # Print memory stats
         total_convos = db.get_conversation_count()
@@ -602,13 +627,20 @@ Only include fields where you found actual data. Respond with JSON only."""
             error_str = str(e).lower()
             print(f"AI error: {e}")
             
-            # Provide helpful error messages
+            # Provide helpful error messages based on provider
+            provider_name = "Gemini" if self.ai_provider == "gemini" else "OpenAI"
+            
             if "429" in str(e) or "rate" in error_str or "quota" in error_str:
-                return "⚠️ OpenAI rate limit reached. Your account may be out of credits. Check your usage at platform.openai.com/usage"
+                if self.ai_provider == "gemini":
+                    return "⚠️ Gemini rate limit reached. Wait a moment and try again, or check your API key at ai.google.dev"
+                else:
+                    return "⚠️ OpenAI rate limit reached. Your account may be out of credits. Check your usage at platform.openai.com/usage"
             elif "401" in str(e) or "invalid" in error_str or "auth" in error_str:
-                return "⚠️ Invalid API key. Please check your OpenAI API key in settings."
+                return f"⚠️ Invalid {provider_name} API key. Please check your API key in settings."
             elif "timeout" in error_str or "connection" in error_str:
                 return "⚠️ Connection issue. Please check your internet connection."
+            elif "api_key" in error_str or "key" in error_str:
+                return f"⚠️ {provider_name} API key issue. Please add a valid API key in settings."
             
             return self._get_local_response(user_input)
     

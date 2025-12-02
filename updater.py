@@ -23,7 +23,7 @@ RELEASES_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/relea
 TAGS_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/tags"
 
 # Current version - update this when releasing
-CURRENT_VERSION = "stable_v1.0.5"
+CURRENT_VERSION = "stable_v1.0.6"
 
 
 def get_current_version() -> str:
