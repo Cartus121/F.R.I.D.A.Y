@@ -22,7 +22,7 @@ GITHUB_REPO = "F.R.I.D.A.Y"
 RELEASES_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
 
 # Current version - update this when releasing
-CURRENT_VERSION = "alpha-v21"
+CURRENT_VERSION = "alpha-v22"
 
 
 def get_current_version() -> str:

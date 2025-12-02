@@ -92,7 +92,8 @@ class ModernGUI:
         self._create_input_area()
         self._create_status_bar()
         self._process_queue()
-        self._check_for_updates()  # Check for updates on startup
+        # Check for updates after 3 seconds (let app start first)
+        self.root.after(3000, lambda: self._check_for_updates(show_no_update_msg=False))
     
     def _fade_in_window(self, alpha=0.0):
         """Smooth fade-in effect for window"""
@@ -145,20 +146,19 @@ class ModernGUI:
         )
         settings_btn.grid(row=0, column=2, padx=5, pady=10)
         
-        # Update button (hidden by default)
+        # Update button - always visible
         self.update_button = ctk.CTkButton(
             header_frame,
-            text="⬆️ Update",
-            width=90,
+            text="🔄 Check Updates",
+            width=120,
             height=30,
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ctk.CTkFont(size=11),
             command=self._on_update_click,
-            fg_color="#22c55e",
-            hover_color="#16a34a"
+            fg_color="gray40",
+            hover_color="gray30"
         )
-        # Hidden initially - will show when update is available
         self.update_button.grid(row=0, column=3, padx=5, pady=10)
-        self.update_button.grid_remove()
+        self.update_available = False  # Track if update is available
         
         self.status_indicator = ctk.CTkLabel(
             header_frame,
@@ -343,14 +343,17 @@ class ModernGUI:
         return msg_label
     
     def _type_words(self, label, text: str, words_per_minute: int = 750):
-        """Display text word by word - synced with speech (about 180 WPM)"""
+        """Display text word by word - AFTER audio starts"""
         self.stop_typing = False  # Reset stop flag
         words = text.split()
         current_text = ""
         
-        # Speech is ~180 words per minute = 3 words per second = 333ms per word
-        # But we want text slightly ahead so it feels synced
-        ms_per_word = 250  # ~4 words per second, slightly ahead of speech
+        # Speech rate is ~150-180 WPM = ~350ms per word
+        # Text should appear AS words are spoken
+        ms_per_word = 300  # Match speech rate
+        
+        # IMPORTANT: Delay start by 500ms to let audio begin first
+        initial_delay = 500
         
         def show_word(index):
             nonlocal current_text
@@ -373,7 +376,8 @@ class ModernGUI:
                     return
                 self.root.after(ms_per_word, lambda: show_word(index + 1))
         
-        show_word(0)
+        # Start typing AFTER delay to let audio begin
+        self.root.after(initial_delay, lambda: show_word(0))
     
     def _on_text_submit(self, event=None):
         """Handle text submission"""
@@ -401,38 +405,70 @@ class ModernGUI:
             self.on_stop_speaking()
         self.set_action("Stopped", "⏹")
     
-    def _check_for_updates(self):
+    def _check_for_updates(self, show_no_update_msg=False):
         """Check for updates in background"""
         def check():
             try:
-                from updater import UpdateChecker
-                self.updater = UpdateChecker(on_update_available=self._on_update_available)
-                self.updater.check_async()
+                from updater import UpdateChecker, check_for_updates, CURRENT_VERSION
+                
+                # Update button to show checking
+                self.root.after(0, lambda: self.update_button.configure(
+                    text="⏳ Checking...",
+                    fg_color="gray40"
+                ))
+                
+                update_info = check_for_updates()
+                
+                if update_info:
+                    self.update_info = update_info
+                    self.update_available = True
+                    self.updater = UpdateChecker()
+                    self.updater.update_info = update_info
+                    self.root.after(0, self._show_update_available)
+                else:
+                    self.update_available = False
+                    self.root.after(0, lambda: self._show_no_update(show_no_update_msg))
+                    
             except Exception as e:
                 print(f"[Update] Error checking for updates: {e}")
+                self.root.after(0, lambda: self.update_button.configure(
+                    text="🔄 Check Updates",
+                    fg_color="gray40"
+                ))
         
-        # Delay check by 3 seconds to let app start first
-        self.root.after(3000, lambda: threading.Thread(target=check, daemon=True).start())
+        threading.Thread(target=check, daemon=True).start()
     
-    def _on_update_available(self, info: dict):
-        """Called when an update is available"""
-        self.update_info = info
-        # Show update button (thread-safe)
-        self.root.after(0, self._show_update_button)
-    
-    def _show_update_button(self):
-        """Show the update button in header"""
+    def _show_update_available(self):
+        """Show that update is available"""
         try:
-            version = self.update_info.get("version", "new version")
-            self.update_button.configure(text=f"⬆️ {version}")
-            self.update_button.grid()  # Show the button
-            self.add_assistant_message(f"🎉 Update available! Version {version} is ready to install. Click the green update button to update.")
+            version = self.update_info.get("version", "new")
+            self.update_button.configure(
+                text=f"⬆️ Update {version}",
+                fg_color="#22c55e",
+                hover_color="#16a34a"
+            )
+            self.add_assistant_message(f"🎉 Update available! Version {version}. Click the green button to update.")
         except Exception as e:
-            print(f"[Update] Error showing button: {e}")
+            print(f"[Update] Error: {e}")
+    
+    def _show_no_update(self, show_message=False):
+        """Show that no update is available"""
+        from updater import CURRENT_VERSION
+        self.update_button.configure(
+            text=f"✓ {CURRENT_VERSION}",
+            fg_color="gray40",
+            hover_color="gray30"
+        )
+        if show_message:
+            self.add_assistant_message(f"You're on the latest version ({CURRENT_VERSION}). No updates available.")
+    
+
     
     def _on_update_click(self):
         """Handle update button click"""
-        if not hasattr(self, 'update_info') or not self.update_info:
+        # If no update available yet, check for updates
+        if not hasattr(self, 'update_available') or not self.update_available:
+            self._check_for_updates(show_no_update_msg=True)
             return
         
         # Show confirmation dialog
