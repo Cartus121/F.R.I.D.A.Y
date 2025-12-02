@@ -48,13 +48,16 @@ class ModernGUI:
     """Modern GUI for F.R.I.D.A.Y. using CustomTkinter"""
     
     def __init__(self, on_text_command: Callable[[str], None] = None,
-                 on_mic_toggle: Callable[[], None] = None):
+                 on_mic_toggle: Callable[[], None] = None,
+                 on_stop_speaking: Callable[[], None] = None):
         
         self.on_text_command = on_text_command
         self.on_mic_toggle = on_mic_toggle
+        self.on_stop_speaking = on_stop_speaking
         self.message_queue = queue.Queue()
         self.is_listening = False
         self.is_awake = False
+        self.stop_typing = False  # Flag to stop word-by-word typing
         self.lang = get_language()  # Get current language
         
         # Setup window
@@ -89,6 +92,7 @@ class ModernGUI:
         self._create_input_area()
         self._create_status_bar()
         self._process_queue()
+        self._check_for_updates()  # Check for updates on startup
     
     def _fade_in_window(self, alpha=0.0):
         """Smooth fade-in effect for window"""
@@ -141,13 +145,28 @@ class ModernGUI:
         )
         settings_btn.grid(row=0, column=2, padx=5, pady=10)
         
+        # Update button (hidden by default)
+        self.update_button = ctk.CTkButton(
+            header_frame,
+            text="⬆️ Update",
+            width=90,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self._on_update_click,
+            fg_color="#22c55e",
+            hover_color="#16a34a"
+        )
+        # Hidden initially - will show when update is available
+        self.update_button.grid(row=0, column=3, padx=5, pady=10)
+        self.update_button.grid_remove()
+        
         self.status_indicator = ctk.CTkLabel(
             header_frame,
             text=get_text("sleeping", self.lang),
             font=ctk.CTkFont(size=12),
             text_color="gray"
         )
-        self.status_indicator.grid(row=0, column=3, padx=15, pady=10)
+        self.status_indicator.grid(row=0, column=4, padx=15, pady=10)
     
     def _create_status_panel(self):
         """Create small status panel showing what F.R.I.D.A.Y. is doing"""
@@ -233,6 +252,19 @@ class ModernGUI:
         self.text_entry.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
         self.text_entry.bind("<Return>", self._on_text_submit)
         
+        # Stop button - stops F.R.I.D.A.Y. from talking
+        self.stop_button = ctk.CTkButton(
+            input_frame,
+            text="⏹",
+            width=45,
+            height=45,
+            font=ctk.CTkFont(size=16),
+            command=self._on_stop_click,
+            fg_color="#dc2626",
+            hover_color="#b91c1c"
+        )
+        self.stop_button.grid(row=0, column=1, padx=5, pady=10)
+        
         self.mic_button = ctk.CTkButton(
             input_frame,
             text=get_text("mic", self.lang),
@@ -243,7 +275,7 @@ class ModernGUI:
             fg_color=ACCENT_COLOR,
             hover_color="#7c3aed"
         )
-        self.mic_button.grid(row=0, column=1, padx=5, pady=10)
+        self.mic_button.grid(row=0, column=2, padx=5, pady=10)
         
         self.send_button = ctk.CTkButton(
             input_frame,
@@ -255,7 +287,7 @@ class ModernGUI:
             fg_color=ACCENT_COLOR,
             hover_color="#7c3aed"
         )
-        self.send_button.grid(row=0, column=2, padx=10, pady=10)
+        self.send_button.grid(row=0, column=3, padx=10, pady=10)
     
     def _create_status_bar(self):
         """Create status bar at bottom"""
@@ -311,15 +343,26 @@ class ModernGUI:
         return msg_label
     
     def _type_words(self, label, text: str, words_per_minute: int = 750):
-        """Display text word by word - fast typing effect"""
+        """Display text word by word - synced with speech"""
+        self.stop_typing = False  # Reset stop flag
         words = text.split()
         current_text = ""
         
-        # Fast display: 80ms per word (750 WPM)
-        ms_per_word = 80
+        # Display ~4 words per second (matches speech rate)
+        ms_per_word = 60
         
         def show_word(index):
             nonlocal current_text
+            # Check if stopped
+            if self.stop_typing:
+                # Show full text immediately when stopped
+                try:
+                    label.configure(text=text)
+                    self.chat_frame._parent_canvas.yview_moveto(1.0)
+                except:
+                    pass
+                return
+            
             if index < len(words):
                 current_text += (" " if current_text else "") + words[index]
                 try:
@@ -349,6 +392,166 @@ class ModernGUI:
         """Handle microphone button click"""
         if self.on_mic_toggle:
             self.on_mic_toggle()
+    
+    def _on_stop_click(self):
+        """Handle stop button click - stops F.R.I.D.A.Y. from talking"""
+        self.stop_typing = True  # Stop word-by-word typing
+        if self.on_stop_speaking:
+            self.on_stop_speaking()
+        self.set_action("Stopped", "⏹")
+    
+    def _check_for_updates(self):
+        """Check for updates in background"""
+        def check():
+            try:
+                from updater import UpdateChecker
+                self.updater = UpdateChecker(on_update_available=self._on_update_available)
+                self.updater.check_async()
+            except Exception as e:
+                print(f"[Update] Error checking for updates: {e}")
+        
+        # Delay check by 3 seconds to let app start first
+        self.root.after(3000, lambda: threading.Thread(target=check, daemon=True).start())
+    
+    def _on_update_available(self, info: dict):
+        """Called when an update is available"""
+        self.update_info = info
+        # Show update button (thread-safe)
+        self.root.after(0, self._show_update_button)
+    
+    def _show_update_button(self):
+        """Show the update button in header"""
+        try:
+            version = self.update_info.get("version", "new version")
+            self.update_button.configure(text=f"⬆️ {version}")
+            self.update_button.grid()  # Show the button
+            self.add_assistant_message(f"🎉 Update available! Version {version} is ready to install. Click the green update button to update.")
+        except Exception as e:
+            print(f"[Update] Error showing button: {e}")
+    
+    def _on_update_click(self):
+        """Handle update button click"""
+        if not hasattr(self, 'update_info') or not self.update_info:
+            return
+        
+        # Show confirmation dialog
+        self._show_update_dialog()
+    
+    def _show_update_dialog(self):
+        """Show update confirmation dialog"""
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("Update F.R.I.D.A.Y.")
+        dialog.geometry("400x250")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - 400) // 2
+        y = (dialog.winfo_screenheight() - 250) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Content
+        version = self.update_info.get("version", "New version")
+        current = self.update_info.get("current", "Unknown")
+        
+        ctk.CTkLabel(
+            dialog,
+            text="🎉 Update Available!",
+            font=ctk.CTkFont(size=20, weight="bold")
+        ).pack(pady=(20, 10))
+        
+        ctk.CTkLabel(
+            dialog,
+            text=f"{current} → {version}",
+            font=ctk.CTkFont(size=14),
+            text_color="gray"
+        ).pack(pady=5)
+        
+        ctk.CTkLabel(
+            dialog,
+            text="F.R.I.D.A.Y. will download the update,\nrestart, and be back online shortly.",
+            font=ctk.CTkFont(size=12),
+            justify="center"
+        ).pack(pady=15)
+        
+        # Progress bar (hidden initially)
+        self.update_progress = ctk.CTkProgressBar(dialog, width=300)
+        self.update_progress.pack(pady=10)
+        self.update_progress.set(0)
+        self.update_progress.pack_forget()  # Hide initially
+        
+        self.update_status_label = ctk.CTkLabel(
+            dialog,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        )
+        self.update_status_label.pack()
+        
+        # Buttons frame
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(pady=15)
+        
+        def start_update():
+            # Hide buttons, show progress
+            update_btn.pack_forget()
+            cancel_btn.pack_forget()
+            self.update_progress.pack(pady=10)
+            self.update_status_label.configure(text="Downloading update...")
+            
+            def do_update():
+                try:
+                    success = self.updater.download_and_install(
+                        progress_callback=lambda p: self.root.after(0, lambda: self._update_progress(p))
+                    )
+                    
+                    if success:
+                        self.root.after(0, lambda: self.update_status_label.configure(
+                            text="Update complete! Restarting..."
+                        ))
+                        # Give user time to read, then exit
+                        self.root.after(1500, lambda: self.root.quit())
+                    else:
+                        self.root.after(0, lambda: self.update_status_label.configure(
+                            text="Update failed. Please try again later."
+                        ))
+                        self.root.after(0, lambda: dialog.destroy())
+                except Exception as e:
+                    self.root.after(0, lambda: self.update_status_label.configure(
+                        text=f"Error: {str(e)[:40]}"
+                    ))
+            
+            threading.Thread(target=do_update, daemon=True).start()
+        
+        update_btn = ctk.CTkButton(
+            btn_frame,
+            text="Update Now",
+            width=120,
+            fg_color="#22c55e",
+            hover_color="#16a34a",
+            command=start_update
+        )
+        update_btn.pack(side="left", padx=10)
+        
+        cancel_btn = ctk.CTkButton(
+            btn_frame,
+            text="Later",
+            width=80,
+            fg_color="gray",
+            hover_color="darkgray",
+            command=dialog.destroy
+        )
+        cancel_btn.pack(side="left", padx=10)
+    
+    def _update_progress(self, progress: float):
+        """Update the progress bar"""
+        try:
+            self.update_progress.set(progress)
+            percent = int(progress * 100)
+            self.update_status_label.configure(text=f"Downloading... {percent}%")
+        except:
+            pass
     
     def _process_command(self, text: str):
         """Process command in background"""

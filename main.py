@@ -482,9 +482,10 @@ def main():
                 gui.set_awake(True)
                 gui.set_action("Listening...", "👂")
                 response = "Yes? What do you need?"
+                gui.add_assistant_message(response)
                 if tts:
                     tts.speak(response)
-                gui.add_assistant_message(response)
+                gui.set_action("Standing by...", "💤")
                 return
             
             gui.add_user_message(command)
@@ -494,10 +495,12 @@ def main():
             response, should_continue = command_handler.process(command)
             gui.add_assistant_message(response)
             gui.set_status("Online")
-            gui.set_action("Standing by...", "💤")
+            gui.set_action("Speaking...", "🗣️")
             
             if tts:
                 tts.speak(response)
+            
+            gui.set_action("Standing by...", "💤")
             
             if not should_continue:
                 gui.set_awake(False)
@@ -506,14 +509,20 @@ def main():
                     recognizer.sleep()
         
         def process_text_command(command: str) -> str:
-            """Process text command"""
+            """Process text command - synchronized text and speech"""
             gui.set_action(f"Processing: {command[:30]}...", "⚡")
             response, _ = command_handler.process(command)
-            gui.set_action("Standing by...", "💤")
-            # Speak in background so text can display simultaneously
+            gui.set_action("Speaking...", "🗣️")
+            # Speak in background - text typing is synced in GUI
             if tts:
                 threading.Thread(target=tts.speak, args=(response,), daemon=True).start()
             return response
+        
+        def stop_speaking():
+            """Stop F.R.I.D.A.Y. from talking"""
+            if tts:
+                tts.stop()
+            gui.set_action("Stopped", "⏹")
         
         def toggle_microphone():
             """Toggle microphone"""
@@ -545,7 +554,8 @@ def main():
         # Create GUI FIRST (before speech to avoid PyAudio/CTK conflict)
         gui = ModernGUI(
             on_text_command=process_text_command,
-            on_mic_toggle=toggle_microphone
+            on_mic_toggle=toggle_microphone,
+            on_stop_speaking=stop_speaking
         )
         
         command_handler.set_gui_callback(gui.add_assistant_message)
