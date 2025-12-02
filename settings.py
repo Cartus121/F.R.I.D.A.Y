@@ -1,6 +1,8 @@
 """
 Settings Manager for F.R.I.D.A.Y.
 Handles user settings, API keys, voice selection, and preferences
+
+stable_v1.1.0 - Gemini Only Edition (FREE!)
 """
 
 import json
@@ -27,12 +29,10 @@ AI_NAMES = {
     "F.R.I.D.A.Y. (Irish Female)": "F.R.I.D.A.Y.",
 }
 
-# Default settings
+# Default settings - Gemini only!
 DEFAULT_SETTINGS = {
-    "openai_api_key": "",
-    "google_api_key": "",
+    "google_api_key": "",  # FREE Gemini API key
     "openweather_api_key": "",
-    "ai_provider": "auto",  # "auto", "gemini", or "openai"
     "language": "en",
     "voice": "F.R.I.D.A.Y. (Irish Female)",
     "ai_name": "F.R.I.D.A.Y.",
@@ -218,47 +218,33 @@ def show_settings_dialog(parent=None) -> bool:
     scroll_frame = ctk.CTkScrollableFrame(dialog, height=480)
     scroll_frame.pack(fill="both", expand=True, padx=20, pady=5)
     
-    # === API Keys Section ===
-    api_section = ctk.CTkLabel(scroll_frame, text="🔑 API Keys & AI Provider", font=ctk.CTkFont(size=16, weight="bold"))
+    # === API Keys Section (Gemini only - FREE!) ===
+    api_section = ctk.CTkLabel(scroll_frame, text="🔑 API Key (FREE!)", font=ctk.CTkFont(size=16, weight="bold"))
     api_section.pack(anchor="w", pady=(10, 5))
     
-    # OpenAI API Key
     api_frame = ctk.CTkFrame(scroll_frame)
     api_frame.pack(fill="x", pady=5)
     
-    # AI Provider Selection
-    ctk.CTkLabel(api_frame, text="AI Provider:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
-    ctk.CTkLabel(api_frame, text="Select which AI to use (changing requires restart)", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=10, pady=(0, 3))
-    
-    provider_map = {"auto": "Auto (Gemini → OpenAI)", "gemini": "Google Gemini (FREE)", "openai": "OpenAI GPT-4o (Paid)"}
-    current_provider = settings.get("ai_provider", "auto")
-    provider_var = ctk.StringVar(value=provider_map.get(current_provider, "Auto (Gemini → OpenAI)"))
-    provider_menu = ctk.CTkOptionMenu(
-        api_frame,
-        values=["Auto (Gemini → OpenAI)", "Google Gemini (FREE)", "OpenAI GPT-4o (Paid)"],
-        variable=provider_var,
-        width=250
-    )
-    provider_menu.pack(anchor="w", padx=10, pady=(0, 10))
-    
-    ctk.CTkLabel(api_frame, text="OpenAI API Key:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
-    ctk.CTkLabel(api_frame, text="Get key at platform.openai.com (paid)", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=10, pady=(0, 3))
-    api_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="sk-proj-...", show="*")
-    api_entry.pack(padx=10, pady=(0, 8))
-    if settings.get("openai_api_key"):
-        api_entry.insert(0, settings["openai_api_key"])
-    
     # Google Gemini API Key (FREE!)
     ctk.CTkLabel(api_frame, text="Google Gemini API Key:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
-    ctk.CTkLabel(api_frame, text="Get FREE key at ai.google.dev", font=ctk.CTkFont(size=10), text_color="#22c55e").pack(anchor="w", padx=10, pady=(0, 3))
-    gemini_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="AIza...", show="*")
-    gemini_entry.pack(padx=10, pady=(0, 8))
+    ctk.CTkLabel(api_frame, text="🆓 Get your FREE key at ai.google.dev", font=ctk.CTkFont(size=11), text_color="#22c55e").pack(anchor="w", padx=10, pady=(0, 3))
+    gemini_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="AIzaSy...")
+    gemini_entry.pack(padx=10, pady=(0, 5))
     if settings.get("google_api_key"):
         gemini_entry.insert(0, settings["google_api_key"])
     
-    # OpenWeather API Key
+    # Help text
+    help_text = ctk.CTkLabel(
+        api_frame, 
+        text="Steps: 1) Go to ai.google.dev  2) Click 'Get API key'  3) Create key  4) Paste here",
+        font=ctk.CTkFont(size=10),
+        text_color="gray"
+    )
+    help_text.pack(anchor="w", padx=10, pady=(0, 8))
+    
+    # OpenWeather API Key (optional)
     ctk.CTkLabel(api_frame, text="OpenWeather API Key (optional):", font=ctk.CTkFont(size=12)).pack(anchor="w", padx=10, pady=(8, 3))
-    weather_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="For weather information...")
+    weather_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="For weather - get free at openweathermap.org")
     weather_entry.pack(padx=10, pady=(0, 8))
     if settings.get("openweather_api_key"):
         weather_entry.insert(0, settings["openweather_api_key"])
@@ -398,39 +384,12 @@ def show_settings_dialog(parent=None) -> bool:
     error_label = ctk.CTkLabel(dialog, text="", text_color="red")
     error_label.pack()
     
-    # Track if provider changed (needs restart)
-    original_provider = settings.get("ai_provider", "auto")
-    
     def save_and_close():
-        api_key = api_entry.get().strip()
         gemini_key = gemini_entry.get().strip()
         
-        # API key validation - both are optional now
-        if api_key and not api_key.startswith("sk-"):
-            error_label.configure(text="⚠️ Invalid OpenAI key format (should start with 'sk-')")
-            return
-        
+        # Validate Gemini key format (should start with AIza)
         if gemini_key and not gemini_key.startswith("AIza"):
             error_label.configure(text="⚠️ Invalid Gemini key format (should start with 'AIza')")
-            return
-        
-        # Get selected provider
-        provider_reverse = {
-            "Auto (Gemini → OpenAI)": "auto",
-            "Google Gemini (FREE)": "gemini", 
-            "OpenAI GPT-4o (Paid)": "openai"
-        }
-        new_provider = provider_reverse.get(provider_var.get(), "auto")
-        
-        # Check if selected provider has valid key
-        if new_provider == "gemini" and not gemini_key:
-            error_label.configure(text="⚠️ Gemini selected but no Gemini API key provided")
-            return
-        if new_provider == "openai" and not api_key:
-            error_label.configure(text="⚠️ OpenAI selected but no OpenAI API key provided")
-            return
-        if new_provider == "auto" and not api_key and not gemini_key:
-            error_label.configure(text="⚠️ Please add at least one API key")
             return
         
         try:
@@ -440,33 +399,30 @@ def show_settings_dialog(parent=None) -> bool:
         
         lang_reverse = {"English": "en", "Русский": "ru", "Auto-detect": "auto"}
         
-        settings["openai_api_key"] = api_key
+        # Save settings
         settings["google_api_key"] = gemini_key
         settings["openweather_api_key"] = weather_entry.get().strip()
-        settings["ai_provider"] = new_provider
         settings["voice"] = "F.R.I.D.A.Y. (Irish Female)"
         settings["ai_name"] = "F.R.I.D.A.Y."
         settings["wake_word"] = wake_entry.get().strip().lower() or "friday"
         settings["language"] = lang_reverse.get(lang_var.get(), "en")
-        
-        # Apply API keys to environment
-        if api_key:
-            os.environ["OPENAI_API_KEY"] = api_key
-        if gemini_key:
-            os.environ["GOOGLE_API_KEY"] = gemini_key
         settings["conversation_timeout"] = timeout
         settings["minimize_to_tray"] = tray_var.get()
         settings["notifications_enabled"] = notif_var.get()
         
+        # Apply Gemini key to environment
+        if gemini_key:
+            os.environ["GOOGLE_API_KEY"] = gemini_key
+        
         save_settings(settings)
         result["saved"] = True
         
-        # Check if provider changed - needs restart
-        if new_provider != original_provider:
-            from tkinter import messagebox
+        # Show success and suggest restart if key was added
+        from tkinter import messagebox
+        if gemini_key:
             restart = messagebox.askyesno(
-                "Restart Required",
-                f"AI provider changed to {provider_var.get()}.\n\nRestart F.R.I.D.A.Y. now to apply changes?",
+                "Settings Saved",
+                "Settings saved successfully!\n\nRestart F.R.I.D.A.Y. now to apply the new API key?",
                 icon='question'
             )
             if restart:

@@ -4,24 +4,24 @@ F.R.I.D.A.Y. Configuration File
 Female Replacement Intelligent Digital Assistant Youth
 Inspired by Iron Man's AI assistant
 
-Edit this file to customize your assistant!
+stable_v1.1.0 - Uses Google Gemini (FREE!)
 """
 
 import os
 from pathlib import Path
 
 # =============================================================================
-# 🔑 API KEYS - Smart loading from settings file + environment
+# 🔑 API KEYS - Gemini is FREE!
 # =============================================================================
 
 def _load_api_key(key_name: str, default: str = "") -> str:
     """Load API key from environment first, then settings file"""
-    # First check environment (may have been set by main.py preload)
+    # First check environment
     env_val = os.environ.get(key_name, "")
     if env_val and env_val.strip():
         return env_val.strip()
     
-    # Try to load from settings file directly
+    # Try to load from settings file
     try:
         settings_path = Path.home() / "friday-assistant" / "settings.json"
         if settings_path.exists():
@@ -29,9 +29,8 @@ def _load_api_key(key_name: str, default: str = "") -> str:
             with open(settings_path, 'r') as f:
                 settings = json.load(f)
                 
-                # Map key names to settings file key names
+                # Map to settings file key names
                 key_map = {
-                    "OPENAI_API_KEY": "openai_api_key",
                     "GOOGLE_API_KEY": "google_api_key",
                     "OPENWEATHER_API_KEY": "openweather_api_key",
                 }
@@ -39,25 +38,16 @@ def _load_api_key(key_name: str, default: str = "") -> str:
                 settings_key = key_map.get(key_name, key_name.lower())
                 val = settings.get(settings_key, "")
                 
-                # Also check api_keys dict (alternate format)
-                if not val:
-                    api_keys = settings.get("api_keys", {})
-                    val = api_keys.get(key_name, "")
-                
                 if val and val.strip() and not val.startswith("YOUR_"):
-                    # Also set environment for other modules
                     os.environ[key_name] = val.strip()
                     return val.strip()
-    except Exception as e:
+    except:
         pass
     
     return default
 
-# OpenAI API Key (REQUIRED for AI chat)
-# Get it at: https://platform.openai.com/api-keys
-OPENAI_API_KEY = _load_api_key("OPENAI_API_KEY")
-
-# Optional: Google Gemini API (alternative to OpenAI)
+# Google Gemini API Key (FREE!)
+# Get it at: https://ai.google.dev/
 GOOGLE_API_KEY = _load_api_key("GOOGLE_API_KEY")
 
 # Optional: OpenWeather API (for weather info)
@@ -168,7 +158,7 @@ for directory in [BASE_DIR, DATA_DIR, LOGS_DIR, NOTES_DIR]:
 # 🤖 AI PERSONALITY - F.R.I.D.A.Y.
 # =============================================================================
 
-AI_MODEL = "gpt-4o"
+AI_MODEL = "gemini-1.5-flash"  # FREE!
 
 SYSTEM_PROMPT = """You are F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth), a personal AI companion inspired by Tony Stark's assistant.
 

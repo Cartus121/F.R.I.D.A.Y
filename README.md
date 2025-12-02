@@ -3,15 +3,30 @@
 *Your personal AI assistant inspired by Iron Man*
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-alpha--v28-purple?style=for-the-badge" alt="Version">
-  <img src="https://img.shields.io/badge/AI-GPT--4o--mini-green?style=for-the-badge" alt="AI">
+  <img src="https://img.shields.io/badge/Version-stable--v1.1.0-purple?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/AI-Gemini%201.5%20Flash-green?style=for-the-badge" alt="AI">
+  <img src="https://img.shields.io/badge/Cost-FREE!-brightgreen?style=for-the-badge" alt="Cost">
   <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge" alt="Python">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-orange?style=for-the-badge" alt="Platform">
 </p>
 
 <p align="center">
-  <b>🎤 Voice Controlled • 🧠 AI Powered • 💡 Smart Home • 🖥️ PC Control</b>
+  <b>🎤 Voice Controlled • 🧠 AI Powered • 💡 Smart Home • 🖥️ PC Control • 🆓 FREE!</b>
 </p>
+
+---
+
+## 🆓 100% FREE AI!
+
+F.R.I.D.A.Y. now uses **Google Gemini** - a powerful AI that's **completely FREE**!
+
+1. Go to [ai.google.dev](https://ai.google.dev/)
+2. Click "Get API key in Google AI Studio"
+3. Sign in with Google
+4. Create API key
+5. Add it in F.R.I.D.A.Y. Settings
+
+**No credit card required. No usage limits for personal use.**
 
 ---
 

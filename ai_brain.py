@@ -1,8 +1,10 @@
 """
 AI Brain Module for F.R.I.D.A.Y.
-Handles AI responses using OpenAI or Google Gemini
+Handles AI responses using Google Gemini (FREE!)
 With long-term memory and evolving personality
 Inspired by Iron Man's AI assistant
+
+stable_v1.1.0 - Gemini Only Edition
 """
 
 # Standard library imports
@@ -14,103 +16,79 @@ from datetime import date, datetime
 from typing import Dict, List, Optional
 
 # Local imports
-from config import (
-    AI_MODEL,
-    ENABLE_SPEECH_VARIATIONS,
-    GOOGLE_API_KEY,
-    LOCATION,
-    MAX_TOKENS,
-    OPENAI_API_KEY,
-    SYSTEM_PROMPT,
-    TIMEZONE,
-    USE_NATURAL_LANGUAGE,
-)
 from database import db
 
-# Try to import AI libraries
-OPENAI_AVAILABLE = False
+# =============================================================================
+# GEMINI SETUP - FREE AI!
+# =============================================================================
 GEMINI_AVAILABLE = False
-openai_client = None
-
-def _get_openai_api_key():
-    """Get OpenAI API key from config or settings"""
-    if OPENAI_API_KEY and OPENAI_API_KEY.strip():
-        return OPENAI_API_KEY
-    # Try from environment (may be set by main.py preload)
-    env_key = os.environ.get("OPENAI_API_KEY", "")
-    if env_key and env_key.strip():
-        return env_key
-    # Try from settings file directly
-    try:
-        from settings import get_api_key
-        key = get_api_key("OPENAI_API_KEY")
-        if key and key.strip():
-            return key
-    except:
-        pass
-    return ""
-
-try:
-    from openai import OpenAI
-    api_key = _get_openai_api_key()
-    if api_key:
-        openai_client = OpenAI(api_key=api_key)
-        OPENAI_AVAILABLE = True
-        print("[OK] OpenAI connected")
-    else:
-        print("[!] OpenAI API key not found - add it in settings")
-except ImportError:
-    print("[!] OpenAI library missing - pip install openai")
-except Exception as e:
-    print(f"[!] OpenAI error: {e}")
-
 gemini_model = None
 
+
 def _get_gemini_api_key():
-    """Get Gemini API key from config or settings"""
-    if GOOGLE_API_KEY and GOOGLE_API_KEY.strip():
-        return GOOGLE_API_KEY
+    """Get Gemini API key from settings or environment"""
+    # First try environment variable
     env_key = os.environ.get("GOOGLE_API_KEY", "")
-    if env_key and env_key.strip():
+    if env_key and env_key.strip() and env_key.startswith("AIza"):
         return env_key
+    
+    # Try from settings file
     try:
         from settings import get_api_key
         key = get_api_key("GOOGLE_API_KEY")
-        if key and key.strip():
+        if key and key.strip() and key.startswith("AIza"):
             return key
     except:
         pass
+    
+    # Try loading settings directly
+    try:
+        from pathlib import Path
+        settings_path = Path.home() / "friday-assistant" / "settings.json"
+        if settings_path.exists():
+            with open(settings_path, 'r') as f:
+                settings = json.load(f)
+                key = settings.get("google_api_key", "")
+                if key and key.strip() and key.startswith("AIza"):
+                    return key
+    except:
+        pass
+    
     return ""
 
+
+# Initialize Gemini
 try:
     import google.generativeai as genai
-    GENAI_AVAILABLE = True
+    
     gemini_key = _get_gemini_api_key()
     if gemini_key:
         genai.configure(api_key=gemini_key)
-        # Use Gemini Pro - powerful and FREE!
-        gemini_model = genai.GenerativeModel('gemini-pro')
+        # Use Gemini 1.5 Flash - fast, smart, and FREE!
+        gemini_model = genai.GenerativeModel('gemini-1.5-flash')
         GEMINI_AVAILABLE = True
-        print("[OK] Gemini Pro connected (FREE)")
+        print("[OK] Gemini 1.5 Flash connected (FREE)")
     else:
-        print("[!] Gemini API key not found - get FREE key at ai.google.dev")
-        print("    Go to: https://ai.google.dev/ -> Get API key")
+        print("")
+        print("=" * 60)
+        print("  GEMINI API KEY REQUIRED")
+        print("=" * 60)
+        print("  F.R.I.D.A.Y. needs a FREE Google Gemini API key to work.")
+        print("")
+        print("  Get your FREE key:")
+        print("  1. Go to: https://ai.google.dev/")
+        print("  2. Click 'Get API key in Google AI Studio'")
+        print("  3. Sign in with Google")
+        print("  4. Create API key (starts with 'AIza...')")
+        print("  5. Add it in F.R.I.D.A.Y. Settings")
+        print("=" * 60)
+        print("")
+        
 except ImportError:
-    GENAI_AVAILABLE = False
-    print("[!] Gemini library missing - pip install google-generativeai")
+    print("[!] Gemini library not installed")
+    print("    Run: pip install google-generativeai")
 except Exception as e:
-    GENAI_AVAILABLE = True  # Library exists but other error
-    print(f"[!] Gemini error: {e}")
-
-
-def get_preferred_provider():
-    """Get user's preferred AI provider from settings"""
-    try:
-        from settings import load_settings
-        settings = load_settings()
-        return settings.get("ai_provider", "auto")
-    except:
-        return "auto"
+    print(f"[!] Gemini setup error: {e}")
 
 
 class AIBrain:
@@ -118,82 +96,28 @@ class AIBrain:
     
     def __init__(self):
         self.session_history: List[Dict] = []
-        self.max_session_history = 5  # Keep more for context
+        self.max_session_history = 10
         self.user_name = None
         self.session_start = datetime.now()
         self.interaction_count = 0
         
-        # Advanced user profiling
-        self.current_mood = "neutral"
-        self.mood_history = []
+        # Personality traits
         self.communication_style = "casual"
         self.topics_discussed = []
         self.user_interests = []
-        self.user_schedule_patterns = {}
-        self.interaction_times = []
         
         self._load_persistent_memory()
         
-        # Determine which AI to use based on settings
-        preferred = get_preferred_provider()
-        print(f"[AI] Preferred provider from settings: {preferred}")
-        print(f"[AI] Gemini available: {GEMINI_AVAILABLE}, OpenAI available: {OPENAI_AVAILABLE}")
-        
-        if preferred == "gemini":
-            if GEMINI_AVAILABLE:
-                self.ai_provider = "gemini"
-                print("[OK] Using Google Gemini Pro (selected)")
-            else:
-                print("[!] Gemini selected but not available - check your Gemini API key!")
-                if OPENAI_AVAILABLE:
-                    self.ai_provider = "openai"
-                    self.openai_client = openai_client
-                    print("[OK] Falling back to OpenAI GPT-4o")
-                else:
-                    self.ai_provider = "local"
-                    print("[!] No AI available - add API keys in settings")
-        elif preferred == "openai":
-            if OPENAI_AVAILABLE:
-                self.ai_provider = "openai"
-                self.openai_client = openai_client
-                print("[OK] Using OpenAI GPT-4o (selected)")
-            else:
-                print("[!] OpenAI selected but not available - check your OpenAI API key!")
-                if GEMINI_AVAILABLE:
-                    self.ai_provider = "gemini"
-                    print("[OK] Falling back to Gemini Pro (FREE)")
-                else:
-                    self.ai_provider = "local"
-                    print("[!] No AI available - add API keys in settings")
-        elif preferred == "auto":
-            # Auto mode: prefer Gemini (free), fallback to OpenAI
-            if GEMINI_AVAILABLE:
-                self.ai_provider = "gemini"
-                print("[OK] Using Google Gemini Pro (FREE - auto)")
-            elif OPENAI_AVAILABLE:
-                self.ai_provider = "openai"
-                self.openai_client = openai_client
-                print("[OK] Using OpenAI GPT-4o (fallback)")
-            else:
-                self.ai_provider = "local"
-                print("[!] No AI configured - add API keys in settings")
+        # Check if Gemini is available
+        if GEMINI_AVAILABLE:
+            print("[OK] AI Brain ready (Gemini 1.5 Flash - FREE)")
         else:
-            # Unknown preference - use whatever is available
-            if GEMINI_AVAILABLE:
-                self.ai_provider = "gemini"
-                print(f"[OK] Using Gemini (unknown preference '{preferred}')")
-            elif OPENAI_AVAILABLE:
-                self.ai_provider = "openai"
-                self.openai_client = openai_client
-                print(f"[OK] Using OpenAI (unknown preference '{preferred}')")
-            else:
-                self.ai_provider = "local"
-                print("[!] No AI configured - add API keys in settings")
+            print("[!] AI Brain in offline mode - add Gemini API key in Settings")
         
         # Print memory stats
         total_convos = db.get_conversation_count()
         memories = db.get_memories()
-        print(f"Loaded {total_convos} past conversations, {len(memories)} memories")
+        print(f"[OK] Loaded {total_convos} conversations, {len(memories)} memories")
     
     def _load_persistent_memory(self):
         """Load user info from database"""
@@ -201,7 +125,7 @@ class AIBrain:
         name_memories = db.get_memories(memory_type="user_name")
         if name_memories:
             self.user_name = name_memories[0]['content']
-            print(f"Remembered user: {self.user_name}")
+            print(f"[OK] Remembered user: {self.user_name}")
         
         # Load user interests
         interest_memories = db.get_memories(memory_type="interest")
@@ -212,637 +136,231 @@ class AIBrain:
         if style_memories:
             self.communication_style = style_memories[0]['content']
     
-    def _analyze_mood(self, user_input: str) -> str:
-        """
-        Analyze user's mood from their message
-        Uses AI to understand emotional context
-        """
-        if not hasattr(self, 'openai_client') or not self.openai_client:
-            return self._simple_mood_detect(user_input)
-        
+    def _get_system_prompt(self) -> str:
+        """Get the system prompt for F.R.I.D.A.Y."""
+        # Get AI name from settings
         try:
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "Analyze the user's mood from their message. Respond with ONE word only: happy, sad, frustrated, anxious, excited, tired, neutral, angry, stressed, curious, playful, or bored."},
-                    {"role": "user", "content": user_input}
-                ],
-                max_tokens=10,
-                temperature=0.1
-            )
-            mood = response.choices[0].message.content.strip().lower()
-            return mood if mood in ["happy", "sad", "frustrated", "anxious", "excited", "tired", "neutral", "angry", "stressed", "curious", "playful", "bored"] else "neutral"
+            from settings import get_ai_name
+            ai_name = get_ai_name()
         except:
-            return self._simple_mood_detect(user_input)
-    
-    def _simple_mood_detect(self, text: str) -> str:
-        """Fallback simple mood detection"""
-        text_lower = text.lower()
+            ai_name = "F.R.I.D.A.Y."
         
-        # Happy indicators
-        if any(w in text_lower for w in ["great", "awesome", "amazing", "happy", "excited", "love", "wonderful", "fantastic", "yay", "haha", "lol", "😊", "😄", "🎉"]):
-            return "happy"
-        # Sad indicators
-        if any(w in text_lower for w in ["sad", "depressed", "down", "miss", "lonely", "cry", "😢", "😭", "💔"]):
-            return "sad"
-        # Frustrated/Angry
-        if any(w in text_lower for w in ["angry", "annoyed", "frustrated", "hate", "stupid", "damn", "ugh", "wtf", "😡", "🤬"]):
-            return "frustrated"
-        # Tired
-        if any(w in text_lower for w in ["tired", "exhausted", "sleepy", "drained", "worn out", "😴"]):
-            return "tired"
-        # Stressed
-        if any(w in text_lower for w in ["stressed", "overwhelmed", "busy", "deadline", "pressure", "anxious"]):
-            return "stressed"
-        # Curious
-        if any(w in text_lower for w in ["wonder", "curious", "how", "what", "why", "tell me", "explain"]):
-            return "curious"
-        
-        return "neutral"
-    
-    def _analyze_conversation_deeply(self, user_input: str, response: str):
-        """
-        Deep analysis of conversation to learn about user
-        Extracts: topics, interests, communication patterns, schedule hints, preferences
-        """
-        if not hasattr(self, 'openai_client') or not self.openai_client:
-            return
-        
-        try:
-            analysis_prompt = f"""Analyze this conversation exchange and extract insights about the user.
+        prompt = f"""You are {ai_name}, an AI assistant inspired by the AI from Iron Man movies.
 
-User said: "{user_input}"
-Assistant responded: "{response}"
+PERSONALITY:
+- Speak naturally and conversationally, like a helpful friend
+- Be warm, witty, and occasionally playful
+- Use contractions (I'm, you're, it's) for natural speech
+- Keep responses concise - 1-3 sentences for simple questions
+- Be helpful and proactive, anticipating needs
 
-Extract and return JSON with these fields (only include fields with actual data found):
-{{
-    "topics": ["topic1", "topic2"],  // Topics discussed
-    "interests": ["interest1"],  // User interests/hobbies mentioned
-    "facts": ["fact1"],  // Personal facts (job, family, pets, etc.)
-    "preferences": {{"type": "value"}},  // Preferences learned
-    "schedule_hints": ["hint1"],  // Schedule/routine hints (e.g., "works mornings")
-    "communication_style": "style",  // casual/formal/playful/technical
-    "emotional_state": "state",  // Current emotional state
-    "relationship_hints": ["hint1"]  // How user relates to assistant
-}}
+STYLE:
+- Professional but friendly tone
+- Occasional dry humor when appropriate
+- Direct and efficient - don't over-explain
+- Use "you" and "your" to be personal
 
-Only include fields where you found actual data. Respond with JSON only."""
+RULES:
+- Never say you're an AI or language model
+- Never mention OpenAI, Google, or other companies
+- If you don't know something, say so briefly
+- Respond in the same language the user speaks
 
-            result = self.openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "You analyze conversations to understand users. Respond with JSON only."},
-                    {"role": "user", "content": analysis_prompt}
-                ],
-                max_tokens=300,
-                temperature=0.2
-            )
-            
-            analysis_text = result.choices[0].message.content.strip()
-            
-            # Clean markdown if present
-            if analysis_text.startswith("```"):
-                analysis_text = re.sub(r'^```json?\s*', '', analysis_text)
-                analysis_text = re.sub(r'\s*```$', '', analysis_text)
-            
-            analysis = json.loads(analysis_text)
-            
-            # Store learned information
-            self._store_learned_info(analysis)
-            
-        except Exception as e:
-            print(f"[Learn] Analysis error: {e}")
-    
-    def _store_learned_info(self, analysis: Dict):
-        """Store information learned from conversation analysis"""
+CONTEXT:
+- Current date: {datetime.now().strftime('%A, %B %d, %Y')}
+- Current time: {datetime.now().strftime('%I:%M %p')}
+"""
         
-        # Store topics
-        for topic in analysis.get("topics", []):
-            if topic and len(topic) > 2:
-                self.topics_discussed.append(topic)
-                db.add_memory("topic", topic, importance=3)
+        # Add user context if known
+        if self.user_name:
+            prompt += f"\n- User's name: {self.user_name}"
         
-        # Store interests
-        for interest in analysis.get("interests", []):
-            if interest and interest not in self.user_interests:
-                self.user_interests.append(interest)
-                db.add_memory("interest", interest, importance=7)
-                db.learn_preference("interest", interest)
-                print(f"[Learn] Learned interest: {interest}")
-        
-        # Store facts
-        for fact in analysis.get("facts", []):
-            if fact and len(fact) > 5:
-                db.add_memory("fact", fact, importance=8)
-                print(f"[Learn] Learned fact: {fact}")
-        
-        # Store preferences
-        for pref_type, pref_value in analysis.get("preferences", {}).items():
-            if pref_type and pref_value:
-                db.learn_preference(pref_type, str(pref_value))
-                print(f"[Learn] Learned preference: {pref_type} = {pref_value}")
-        
-        # Store schedule hints
-        for hint in analysis.get("schedule_hints", []):
-            if hint:
-                db.add_memory("schedule", hint, importance=6)
-                print(f"[Learn] Learned schedule: {hint}")
-        
-        # Update communication style
-        style = analysis.get("communication_style")
-        if style and style != self.communication_style:
-            self.communication_style = style
-            db.add_memory("communication_style", style, importance=5)
-    
-    def _build_dynamic_prompt(self) -> str:
-        """Build system prompt with memories and personality"""
-        base_prompt = SYSTEM_PROMPT
-        
-        # Add location context
-        location_context = f"\n\nLOCATION CONTEXT:\n- User is located in {LOCATION}\n- Timezone: {TIMEZONE}\n- Current local time: {datetime.now().strftime('%H:%M on %A, %B %d, %Y')}"
-        
-        # Add personality traits
-        personality = db.get_personality_description()
-        personality_context = f"\n\nYOUR EVOLVED PERSONALITY:\nYou have developed these traits over time: {personality}"
-        
-        # Add memories about user
-        memories = db.get_all_memories_formatted()
-        memory_context = ""
-        if memories:
-            memory_context = f"\n\nTHINGS YOU REMEMBER ABOUT THE USER:\n{memories}"
-        
-        # Add learned preferences
-        prefs = db.get_learned_preferences()
-        pref_context = ""
-        if prefs:
-            pref_lines = [f"- {p['preference_type']}: {p['preference_value']}" for p in prefs[:10]]
-            pref_context = f"\n\nUSER PREFERENCES YOU'VE LEARNED:\n" + "\n".join(pref_lines)
-        
-        # Add recent conversation summaries for context
-        summaries = db.get_recent_summaries(days=3)
-        summary_context = ""
-        if summaries:
-            summary_lines = [f"- {s['date']}: {s['summary']}" for s in summaries]
-            summary_context = f"\n\nRECENT CONVERSATION CONTEXT:\n" + "\n".join(summary_lines)
-        
-        # Add lessons learned from corrections
-        lessons = db.get_lessons_formatted()
-        lessons_context = ""
-        if lessons:
-            lessons_context = f"\n\nLESSONS I'VE LEARNED FROM YOU:\n{lessons}"
-        
-        # Add current mood context
-        mood_context = ""
-        if self.current_mood != "neutral":
-            mood_responses = {
-                "happy": "The user seems happy - match their energy!",
-                "sad": "The user seems down - be extra supportive and caring.",
-                "frustrated": "The user seems frustrated - be patient, helpful, and don't be too chatty.",
-                "tired": "The user seems tired - keep responses brief and don't overwhelm them.",
-                "stressed": "The user seems stressed - be calming and helpful, offer to help.",
-                "excited": "The user is excited - share their enthusiasm!",
-                "angry": "The user seems upset - be calm, understanding, and helpful.",
-                "curious": "The user is curious - provide detailed, interesting info.",
-                "playful": "The user is being playful - have fun with them!",
-                "bored": "The user might be bored - be engaging and interesting.",
-            }
-            mood_context = f"\n\nCURRENT MOOD DETECTED: {self.current_mood}\n{mood_responses.get(self.current_mood, '')}"
-        
-        # Add user interests if known
-        interests_context = ""
         if self.user_interests:
-            interests_context = f"\n\nUSER INTERESTS: {', '.join(self.user_interests[:10])}"
+            prompt += f"\n- User interests: {', '.join(self.user_interests[:5])}"
         
-        # Combine all
-        full_prompt = (base_prompt + location_context + personality_context + 
-                      memory_context + pref_context + summary_context + 
-                      lessons_context + mood_context + interests_context)
-        
-        return full_prompt
-    
-    def _detect_correction(self, user_input: str) -> bool:
-        """Detect if user is correcting F.R.I.D.A.Y."""
-        correction_phrases = [
-            # Explicit corrections
-            "no that's wrong", "that's not what i", "i didn't ask", "i meant",
-            "no i said", "wrong", "that's not right", "not what i wanted",
-            "you misunderstood", "i was asking about", "no no no", "nope",
-            "that's not it", "don't do that", "stop doing", "never do",
-            "you should", "you shouldn't", "next time", "remember that",
-            "i told you", "i already said", "listen", "pay attention",
-            "not that", "the other", "i was talking about", "when i say",
-            "that means", "understand", "learn this", "remember this",
-            # Casual corrections (new)
-            "bruh no", "dude no", "nah nah", "not even close", "what no",
-            "bro what", "thats not", "thats wrong", "no no", "wait no",
-            "hold up", "actually no", "uh no", "um no", "wtf no",
-            "huh no", "eh no", "nah that's", "that ain't", "aint it",
-            "you're wrong", "youre wrong", "miss", "missed", "way off",
-            "completely wrong", "totally wrong", "so wrong", "very wrong",
-            "no dude", "no man", "no bro", "no bruh", "cmon", "come on",
-        ]
-        user_lower = user_input.lower()
-        return any(phrase in user_lower for phrase in correction_phrases)
-    
-    def _learn_from_correction(self, user_input: str, last_response: str):
-        """Learn from user's correction"""
-        user_lower = user_input.lower()
-        
-        # Extract the lesson
-        lesson = user_input
-        
-        # Detect rule type
-        rule_type = "behavior"
-        if any(word in user_lower for word in ["don't", "stop", "never", "shouldn't"]):
-            rule_type = "dont"
-        elif any(word in user_lower for word in ["should", "always", "when i say", "means"]):
-            rule_type = "should"
-        elif any(word in user_lower for word in ["i meant", "i was asking", "talking about"]):
-            rule_type = "understanding"
-        
-        # Store the correction
-        db.add_correction(
-            user_said=user_input[:200],
-            wrong_response=last_response[:200] if last_response else "",
-            correct_behavior=user_input[:200],
-            lesson=lesson[:300]
-        )
-        
-        # Extract specific rules
-        if "when i say" in user_lower and ("mean" in user_lower or "means" in user_lower):
-            # User is teaching meaning
-            db.add_rule("meaning", user_input, importance=8)
-        elif any(word in user_lower for word in ["don't", "never", "stop"]):
-            # User is saying not to do something
-            db.add_rule("dont", user_input, importance=7)
-        elif any(word in user_lower for word in ["should", "always", "remember"]):
-            # User is saying to do something
-            db.add_rule("should", user_input, importance=7)
-        else:
-            # General correction
-            db.add_rule("general", user_input, importance=5)
-        
-        print(f"[Learning] Learned from correction: {user_input[:50]}...")
-    
-    def _extract_memories(self, user_input: str, response: str):
-        """Extract and store important information from conversation"""
-        user_lower = user_input.lower()
-        
-        # Check if this is a correction - learn from it
-        if self._detect_correction(user_input):
-            # Get last response from session history
-            last_response = ""
-            if self.session_history:
-                last_response = self.session_history[-1].get("content", "")
-            self._learn_from_correction(user_input, last_response)
-        
-        # Extract user's name
-        name_patterns = [
-            r"my name is (\w+)",
-            r"i'm (\w+)",
-            r"call me (\w+)",
-            r"this is (\w+)",
-            r"i am (\w+)"
-        ]
-        for pattern in name_patterns:
-            match = re.search(pattern, user_lower)
-            if match:
-                name = match.group(1).capitalize()
-                if len(name) > 1 and name.lower() not in ['a', 'the', 'just', 'not', 'here', 'there']:
-                    self.user_name = name
-                    db.add_memory("user_name", name, importance=10)
-                    print(f"[Memory] Learned user's name: {name}")
-                    break
-        
-        # Extract preferences
-        preference_patterns = [
-            (r"i (?:really )?(?:like|love|enjoy|prefer) (\w+(?:\s+\w+)?)", "likes"),
-            (r"i (?:don't like|hate|dislike) (\w+(?:\s+\w+)?)", "dislikes"),
-            (r"my favorite (\w+) is (\w+(?:\s+\w+)?)", "favorite"),
-            (r"i work (?:as|at|in) (\w+(?:\s+\w+)?)", "work"),
-            (r"i'm (?:a|an) (\w+)", "occupation"),
-            (r"i live in (\w+(?:\s+\w+)?)", "location"),
-            (r"i'm from (\w+(?:\s+\w+)?)", "origin"),
-        ]
-        
-        for pattern, pref_type in preference_patterns:
-            match = re.search(pattern, user_lower)
-            if match:
-                if pref_type == "favorite":
-                    content = f"{match.group(1)}: {match.group(2)}"
-                else:
-                    content = match.group(1)
-                db.add_memory(pref_type, content, importance=7)
-                db.learn_preference(pref_type, content)
-                print(f"[Memory] Learned {pref_type}: {content}")
-        
-        # Store general facts if user shares personal info
-        fact_indicators = ["i have", "i've been", "i went", "i'm going", "my wife", "my husband", 
-                          "my kids", "my dog", "my cat", "my job", "my car", "my house"]
-        for indicator in fact_indicators:
-            if indicator in user_lower and len(user_input) > 20:
-                db.add_memory("fact", user_input[:200], importance=5)
-                break
-    
-    def _adjust_personality(self, user_input: str, response: str):
-        """Adjust personality based on user interaction patterns"""
-        user_lower = user_input.lower()
-        
-        # User seems to want more humor
-        if any(word in user_lower for word in ["haha", "lol", "funny", "joke", "😂", "😄"]):
-            db.update_personality_trait("humor", 0.02)
-            db.update_personality_trait("playfulness", 0.02)
-        
-        # User wants more directness
-        if any(phrase in user_lower for phrase in ["just tell me", "get to the point", "short answer", "briefly"]):
-            db.update_personality_trait("directness", 0.03)
-        
-        # User appreciates warmth
-        if any(word in user_lower for word in ["thanks", "thank you", "appreciate", "helpful", "great"]):
-            db.update_personality_trait("warmth", 0.01)
-            db.update_personality_trait("empathy", 0.01)
-        
-        # User prefers casual
-        if any(word in user_lower for word in ["yo", "hey", "sup", "dude", "man", "bro"]):
-            db.update_personality_trait("formality", -0.02)
-            db.update_personality_trait("playfulness", 0.01)
-    
-    def _humanize_response(self, text: str) -> str:
-        """Add natural speech patterns to make responses more human"""
-        if not USE_NATURAL_LANGUAGE:
-            return text
-        
-        text = text.replace(" - ", ", ")
-        
-        replacements = {
-            "I am ": "I'm ", "I will ": "I'll ", "I would ": "I'd ",
-            "I have ": "I've ", "you are ": "you're ", "you will ": "you'll ",
-            "you would ": "you'd ", "you have ": "you've ", "it is ": "it's ",
-            "it will ": "it'll ", "that is ": "that's ", "there is ": "there's ",
-            "here is ": "here's ", "what is ": "what's ", "who is ": "who's ",
-            "let us ": "let's ", "cannot ": "can't ", "will not ": "won't ",
-            "do not ": "don't ", "does not ": "doesn't ", "did not ": "didn't ",
-            "is not ": "isn't ", "are not ": "aren't ", "was not ": "wasn't ",
-            "were not ": "weren't ", "have not ": "haven't ", "has not ": "hasn't ",
-            "had not ": "hadn't ", "would not ": "wouldn't ", "could not ": "couldn't ",
-            "should not ": "shouldn't ",
-        }
-        
-        for formal, casual in replacements.items():
-            text = text.replace(formal, casual)
-            text = text.replace(formal.capitalize(), casual.capitalize())
-        
-        return text
+        return prompt
     
     def get_response(self, user_input: str, context: Dict = None) -> str:
-        """Get AI response - OPTIMIZED for speed"""
+        """Get AI response to user input"""
         self.interaction_count += 1
         
-        # Simple input enhancement (minimal overhead)
-        enhanced_input = user_input
-        if self.user_name:
-            enhanced_input = f"[User: {self.user_name}] {user_input}"
+        # Check for name introduction
+        self._check_for_name(user_input)
         
         try:
-            if self.ai_provider == "openai":
-                response = self._get_openai_response(enhanced_input)
-            elif self.ai_provider == "gemini":
-                response = self._get_gemini_response(enhanced_input)
+            if GEMINI_AVAILABLE and gemini_model:
+                response = self._get_gemini_response(user_input)
             else:
-                response = self._get_local_response(user_input)
+                response = self._get_offline_response(user_input)
             
-            final_response = self._humanize_response(response)
-            
-            # Save conversation and learn in BACKGROUND (don't block response)
+            # Save conversation in background
             import threading
             threading.Thread(
-                target=self._background_learn,
-                args=(user_input, final_response),
+                target=self._save_conversation,
+                args=(user_input, response),
                 daemon=True
             ).start()
             
-            return final_response
+            return response
             
         except Exception as e:
             error_str = str(e).lower()
-            print(f"AI error: {e}")
+            print(f"[!] AI error: {e}")
             
-            # Provide helpful error messages based on provider
-            provider_name = "Gemini" if self.ai_provider == "gemini" else "OpenAI"
-            
-            if "429" in str(e) or "rate" in error_str or "quota" in error_str:
-                if self.ai_provider == "gemini":
-                    return "⚠️ Gemini rate limit reached. Wait a moment and try again, or check your API key at ai.google.dev"
-                else:
-                    return "⚠️ OpenAI rate limit reached. Your account may be out of credits. Check your usage at platform.openai.com/usage"
-            elif "401" in str(e) or "invalid" in error_str or "auth" in error_str:
-                return f"⚠️ Invalid {provider_name} API key. Please check your API key in settings."
+            # Helpful error messages
+            if "429" in str(e) or "quota" in error_str or "rate" in error_str:
+                return "⚠️ Rate limit reached. Wait a moment and try again."
+            elif "401" in str(e) or "invalid" in error_str or "api_key" in error_str:
+                return "⚠️ Invalid API key. Please check your Gemini API key in Settings."
             elif "timeout" in error_str or "connection" in error_str:
-                return "⚠️ Connection issue. Please check your internet connection."
-            elif "api_key" in error_str or "key" in error_str:
-                return f"⚠️ {provider_name} API key issue. Please add a valid API key in settings."
+                return "⚠️ Connection issue. Check your internet connection."
             
-            return self._get_local_response(user_input)
-    
-    def _background_learn(self, user_input: str, response: str):
-        """Do all learning in background to not slow down responses"""
-        try:
-            db.save_conversation(user_input, response)
-            self._extract_memories(user_input, response)
-            self.interaction_times.append(datetime.now())
-            # Only do deep analysis occasionally (every 5 interactions)
-            if self.interaction_count % 5 == 0:
-                self._analyze_conversation_deeply(user_input, response)
-        except Exception as e:
-            pass  # Don't let learning errors affect anything
-    
-    def _get_openai_response(self, user_input: str) -> str:
-        """Get response from OpenAI - SPEED OPTIMIZED"""
-        # Shorter, faster prompt
-        system_prompt = self._get_fast_prompt()
-        
-        # Include last 2 exchanges for context (not 5)
-        messages = [{"role": "system", "content": system_prompt}]
-        
-        # Add minimal history
-        for exchange in self.session_history[-2:]:
-            messages.append({"role": "user", "content": exchange["user"]})
-            messages.append({"role": "assistant", "content": exchange["assistant"]})
-        
-        messages.append({"role": "user", "content": user_input})
-        
-        response = openai_client.chat.completions.create(
-            model="gpt-4o",  # Smart and fast
-            messages=messages,
-            max_tokens=200,  # Shorter = faster
-            temperature=0.7
-        )
-        
-        assistant_response = response.choices[0].message.content
-        
-        # Store for context
-        self.session_history.append({
-            "user": user_input,
-            "assistant": assistant_response
-        })
-        
-        # Keep history small
-        if len(self.session_history) > 10:
-            self.session_history = self.session_history[-5:]
-        
-        return assistant_response
-    
-    def _get_fast_prompt(self) -> str:
-        """Get a concise system prompt for fastest processing"""
-        name = self.user_name or "User"
-        return f"""F.R.I.D.A.Y. - Iron Man style AI. Witty, helpful, concise.
-User: {name} | Time: {datetime.now().strftime('%I:%M %p')}
-Be concise (1-3 sentences). Handle coding, math, science, general knowledge."""
+            return self._get_offline_response(user_input)
     
     def _get_gemini_response(self, user_input: str) -> str:
-        """Get response from Google Gemini 2.0 Flash - FAST and FREE"""
-        # Build a simple, fast prompt
-        name = self.user_name or "User"
-        system_prompt = f"""You are F.R.I.D.A.Y., an AI assistant like from Iron Man. Be witty, helpful, and concise.
-User's name: {name}
-Current time: {datetime.now().strftime('%I:%M %p')}
-Be concise (1-3 sentences usually). You can handle coding, math, science, general knowledge."""
-
-        # Build conversation with minimal history
-        conversation = [system_prompt, "\nConversation:"]
+        """Get response from Gemini"""
+        # Build conversation for context
+        system_prompt = self._get_system_prompt()
         
-        for exchange in self.session_history[-2:]:
-            conversation.append(f"User: {exchange['user']}")
-            conversation.append(f"F.R.I.D.A.Y.: {exchange['assistant']}")
+        # Build chat history
+        chat_parts = [system_prompt + "\n\n"]
         
-        conversation.append(f"User: {user_input}")
-        conversation.append("F.R.I.D.A.Y.:")
+        # Add recent history
+        for exchange in self.session_history[-3:]:
+            chat_parts.append(f"User: {exchange['user']}\n")
+            chat_parts.append(f"Assistant: {exchange['assistant']}\n\n")
         
-        full_prompt = "\n".join(conversation)
+        # Add current input
+        chat_parts.append(f"User: {user_input}\nAssistant:")
         
+        full_prompt = "".join(chat_parts)
+        
+        # Generate response
         response = gemini_model.generate_content(
             full_prompt,
             generation_config={
-                "max_output_tokens": 200,
+                "max_output_tokens": 300,
                 "temperature": 0.7,
             }
         )
         
         assistant_response = response.text.strip()
         
-        # Store for context
+        # Clean up response
+        assistant_response = self._clean_response(assistant_response)
+        
+        # Store in session history
         self.session_history.append({
             "user": user_input,
             "assistant": assistant_response
         })
         
         # Keep history small
-        if len(self.session_history) > 10:
+        if len(self.session_history) > self.max_session_history:
             self.session_history = self.session_history[-5:]
         
         return assistant_response
     
-    def _get_local_response(self, user_input: str) -> str:
-        """Provide natural responses without AI API"""
-        user_input_lower = user_input.lower()
+    def _clean_response(self, text: str) -> str:
+        """Clean up AI response"""
+        # Remove "Assistant:" prefix if present
+        if text.startswith("Assistant:"):
+            text = text[10:].strip()
         
-        # Get personality to adjust responses
-        traits = db.get_personality_traits()
-        is_playful = traits.get('playfulness', 0.5) > 0.5
-        is_warm = traits.get('warmth', 0.5) > 0.6
+        # Remove quotes if the whole response is quoted
+        if text.startswith('"') and text.endswith('"'):
+            text = text[1:-1]
         
-        responses = {
-            "hello": [
-                "Hey there! What's on your mind?",
-                "Hi! Good to hear from you. How can I help?",
-                "Hello! What can I do for you today?"
-            ],
-            "hi": [
-                "Hey! What's up?",
-                "Hi there! Need anything?",
-                "Hey, how's it going?"
-            ],
-            "how are you": [
-                "I'm doing well, thanks for asking! How about you?",
-                "Pretty good! Anything I can help you with?",
-                "All good here. What's going on with you?"
-            ],
-            "thank you": [
-                "No problem at all!",
-                "Happy to help!",
-                "You got it. Anything else?"
-            ],
-            "thanks": ["Sure thing!", "Anytime!", "Of course!"],
-            "goodbye": [
-                "Take care! Talk to you later.",
-                "Bye for now! Have a good one.",
-                "See you! Let me know if you need anything."
-            ],
-            "bye": ["Later!", "Catch you later!", "See ya!"],
-            "help": [
-                "Sure, I can help with calendar, notes, reminders, or just chatting. What do you need?",
-            ],
-            "what can you do": [
-                "I can help with your schedule, take notes, set reminders, check the weather, and chat. What sounds useful?",
-            ],
-            "good morning": [
-                "Morning! Ready to take on the day?",
-                "Good morning! How'd you sleep?",
-            ],
-            "good night": [
-                "Night! Sleep well.",
-                "Good night! Rest up.",
-            ],
-            "what do you remember": [
-                self._format_memories_response()
-            ],
-            "who am i": [
-                self._format_user_info_response()
-            ],
-        }
+        return text
+    
+    def _check_for_name(self, user_input: str):
+        """Check if user introduces themselves"""
+        input_lower = user_input.lower()
         
-        for key, response_list in responses.items():
-            if key in user_input_lower:
-                response = random.choice(response_list)
-                if self.user_name and random.random() > 0.5:
-                    response = response.replace("!", f", {self.user_name}!")
-                return response
-        
-        default_responses = [
-            f"I heard you, but I'm in basic mode without an API key. I can still help with calendar, notes, and time though!",
-            f"Got it! Add an OpenAI API key to config.py for full conversations. Meanwhile, try asking about your schedule!",
+        patterns = [
+            r"(?:my name is|i'm|i am|call me|it's|this is)\s+([a-zA-Z]+)",
+            r"^([A-Z][a-z]+)\s+here",
         ]
-        return random.choice(default_responses)
-    
-    def _format_memories_response(self) -> str:
-        """Format memories into a response"""
-        memories = db.get_memories(limit=10)
-        if not memories:
-            return "I haven't learned much about you yet. Tell me about yourself!"
         
-        memory_text = []
-        for m in memories:
-            memory_text.append(f"- {m['memory_type']}: {m['content']}")
+        for pattern in patterns:
+            match = re.search(pattern, user_input, re.IGNORECASE)
+            if match:
+                name = match.group(1).strip().title()
+                if len(name) > 1 and name.lower() not in ["me", "i", "the", "a", "an"]:
+                    self.user_name = name
+                    db.add_memory("user_name", name, importance=10)
+                    print(f"[OK] Learned user name: {name}")
+                    break
+    
+    def _save_conversation(self, user_input: str, response: str):
+        """Save conversation to database"""
+        try:
+            db.save_conversation(user_input, response)
+        except Exception as e:
+            pass  # Don't let save errors affect anything
+    
+    def _get_offline_response(self, user_input: str) -> str:
+        """Provide responses when AI is not available"""
+        input_lower = user_input.lower()
         
-        return f"Here's what I remember about you:\n" + "\n".join(memory_text)
+        # Greetings
+        if any(w in input_lower for w in ["hello", "hi", "hey", "good morning", "good evening"]):
+            responses = [
+                "Hey there! I'm in offline mode right now. Add your Gemini API key in Settings to unlock my full capabilities!",
+                "Hi! I'm running without AI at the moment. Get a FREE API key at ai.google.dev to enable smart responses.",
+                "Hello! My AI features are offline. Set up your free Gemini key in Settings to chat properly!"
+            ]
+            return random.choice(responses)
+        
+        # How are you
+        if any(w in input_lower for w in ["how are you", "how's it going", "what's up"]):
+            return "I'm in offline mode, so a bit limited! Add your Gemini API key in Settings for full functionality."
+        
+        # Help
+        if "help" in input_lower or "what can you do" in input_lower:
+            return """I can help with lots of things once you add your FREE Gemini API key:
+
+🗣️ Natural conversations
+📅 Calendar & scheduling  
+📝 Notes & reminders
+🌤️ Weather information
+🔍 General questions
+
+Get your FREE key at: ai.google.dev"""
+        
+        # Thank you
+        if any(w in input_lower for w in ["thank", "thanks"]):
+            return "You're welcome! Don't forget to add your Gemini API key for the full experience."
+        
+        # Goodbye
+        if any(w in input_lower for w in ["bye", "goodbye", "see you"]):
+            return "Goodbye! Come back after setting up your API key!"
+        
+        # Default
+        return """I'm in offline mode and can't process that request.
+
+To enable my AI capabilities:
+1. Go to Settings (⚙️)
+2. Add your FREE Gemini API key
+3. Get a key at: ai.google.dev
+
+It only takes a minute!"""
     
-    def _format_user_info_response(self) -> str:
-        """Format user info response"""
-        if self.user_name:
-            total = db.get_conversation_count()
-            return f"You're {self.user_name}! We've had {total} conversations together."
-        return "I don't know your name yet. What should I call you?"
+    def remember(self, key: str, value: str, importance: int = 5):
+        """Store a memory"""
+        db.add_memory(key, value, importance)
     
-    def clear_history(self):
-        """Clear session history only (not persistent memory)"""
-        self.session_history = []
+    def recall(self, memory_type: str = None) -> List[Dict]:
+        """Retrieve memories"""
+        return db.get_memories(memory_type)
     
-    def get_summary(self) -> str:
-        """Get a summary of memory and conversations"""
-        total = db.get_conversation_count()
-        memories = len(db.get_memories())
-        return f"I remember {total} conversations and {memories} facts about you."
+    def get_conversation_summary(self) -> str:
+        """Get a summary of recent conversations"""
+        if not self.session_history:
+            return "No conversations in this session yet."
+        
+        return f"We've had {len(self.session_history)} exchanges this session."
 
 
-# Create global instance
+# Global brain instance
 brain = AIBrain()

@@ -2,7 +2,9 @@
 """
 F.R.I.D.A.Y. - Female Replacement Intelligent Digital Assistant Youth
 Main entry point with integrated loading screen
-stable_v1.0.5 - Optimized for Windows & Linux
+
+stable_v1.1.0 - Gemini Only Edition (FREE!)
+Optimized for Windows & Linux
 """
 
 import logging
@@ -26,12 +28,14 @@ if sys.platform == 'win32':
     except:
         pass
     
-    # Disable GPU for stability (prevents crashes on some systems)
+    # Disable GPU for stability
     os.environ.setdefault('TF_ENABLE_ONEDNN_OPTS', '0')
+    
+    # Fix for PyInstaller MEI crashes
+    os.environ.setdefault('PYINSTALLER_CLEANUP', '0')
 
 # =============================================================================
-# CRITICAL: Load API keys BEFORE any other imports
-# This ensures config.py gets the right values
+# CRITICAL: Load Gemini API key BEFORE any other imports
 # =============================================================================
 def _preload_api_keys():
     """Load API keys from settings file into environment FIRST"""
@@ -42,28 +46,16 @@ def _preload_api_keys():
             with open(settings_path, 'r') as f:
                 settings = json.load(f)
                 
-                # Map settings file keys to environment variable names
-                key_map = {
-                    "openai_api_key": "OPENAI_API_KEY",
-                    "google_api_key": "GOOGLE_API_KEY",
-                    "openweather_api_key": "OPENWEATHER_API_KEY",
-                }
+                # Load Gemini API key (FREE!)
+                gemini_key = settings.get("google_api_key", "")
+                if gemini_key and gemini_key.strip() and gemini_key.startswith("AIza"):
+                    os.environ["GOOGLE_API_KEY"] = gemini_key.strip()
+                    print("[OK] Gemini API key loaded")
                 
-                # Load from mapped keys (new format)
-                for settings_key, env_key in key_map.items():
-                    value = settings.get(settings_key, "")
-                    if value and value.strip() and not value.startswith("YOUR_"):
-                        if env_key not in os.environ or not os.environ[env_key]:
-                            os.environ[env_key] = value.strip()
-                            print(f"[OK] Loaded {env_key} from settings")
-                
-                # Also check api_keys dict (alternate format)
-                api_keys = settings.get("api_keys", {})
-                for key, value in api_keys.items():
-                    if value and value.strip() and not value.startswith("YOUR_"):
-                        if key not in os.environ or not os.environ[key]:
-                            os.environ[key] = value.strip()
-                            print(f"[OK] Loaded {key} from settings (api_keys)")
+                # Load weather key if present
+                weather_key = settings.get("openweather_api_key", "")
+                if weather_key and weather_key.strip():
+                    os.environ["OPENWEATHER_API_KEY"] = weather_key.strip()
     except Exception as e:
         print(f"[!] API key preload: {e}")
 
@@ -715,7 +707,7 @@ def main():
         # Start voice recognition
         def start_voice():
             global is_listening
-            time.sleep(0.5)
+            time.sleep(1.0)  # Let GUI fully initialize
             
             # Get AI name for messages
             try:
@@ -729,13 +721,19 @@ def main():
             
             if recognizer:
                 try:
+                    # Start listening first
                     recognizer.start_listening(process_voice_command)
                     is_listening = True
                     gui.set_listening(True)
+                    
+                    # Small delay before TTS to avoid audio conflict
+                    time.sleep(0.5)
+                    
                     gui.add_assistant_message(f"{ai_name} online. Say '{wake_word}' when you need me.")
                     if tts:
                         tts.speak(f"{ai_name} online and ready.")
                 except Exception as e:
+                    logger.error(f"Voice start error: {e}")
                     gui.add_assistant_message(f"Voice offline: {e}")
             else:
                 gui.add_assistant_message(f"{ai_name} voice unavailable. Text input ready.")

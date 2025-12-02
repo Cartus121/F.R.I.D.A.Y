@@ -1,7 +1,9 @@
 """
 Command Handler for F.R.I.D.A.Y.
-FULLY AI-POWERED - No keyword detection
+FULLY AI-POWERED - Uses Google Gemini (FREE!)
 AI analyzes the full sentence to understand intent
+
+stable_v1.1.0 - Gemini Only Edition
 """
 
 import threading
@@ -27,13 +29,16 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
+# Gemini for intent detection
+GEMINI_AVAILABLE = False
+gemini_model = None
 
-from config import LOCATION, TIMEZONE, DATE_FORMAT, TIME_FORMAT, WAKE_WORD, OPENAI_API_KEY
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    pass
+
 from database import db
 from ai_brain import brain
 
@@ -92,89 +97,54 @@ If it's just conversation or you're unsure, use:
 class CommandHandler:
     """
     AI-Powered Command Handler
-    Uses AI (Gemini or GPT) to analyze sentences and determine intent
+    Uses Gemini (FREE!) to analyze sentences and determine intent
     NO keyword matching - full natural language understanding
     """
     
     def __init__(self):
         self.gui_callback = None
         self.system = platform.system()
-        self.openai_client = None
         self.gemini_model = None
-        self.ai_provider = None  # "gemini", "openai", or None
         
-        # Initialize AI for intent detection based on settings
-        self._init_ai()
+        # Initialize Gemini for intent detection
+        self._init_gemini()
     
-    def _get_preferred_provider(self):
-        """Get user's preferred AI provider from settings"""
-        try:
-            from settings import load_settings
-            settings = load_settings()
-            return settings.get("ai_provider", "auto")
-        except:
-            return "auto"
-    
-    def _init_ai(self):
-        """Initialize AI client based on user preference"""
-        preferred = self._get_preferred_provider()
+    def _init_gemini(self):
+        """Initialize Gemini for command processing"""
+        if not GEMINI_AVAILABLE:
+            print("[!] Gemini library not available")
+            return
         
-        # Get API keys
+        # Get API key
         gemini_key = os.environ.get("GOOGLE_API_KEY", "")
-        openai_key = os.environ.get("OPENAI_API_KEY", "")
         
         if not gemini_key:
             try:
-                from settings import get_api_key
                 gemini_key = get_api_key("GOOGLE_API_KEY")
             except:
                 pass
         
-        if not openai_key:
+        if not gemini_key:
+            # Try loading from settings file directly
             try:
-                from settings import get_api_key
-                openai_key = get_api_key("OPENAI_API_KEY")
+                from pathlib import Path
+                settings_path = Path.home() / "friday-assistant" / "settings.json"
+                if settings_path.exists():
+                    with open(settings_path, 'r') as f:
+                        settings = json.load(f)
+                        gemini_key = settings.get("google_api_key", "")
             except:
                 pass
         
-        # Initialize based on preference
-        if preferred == "gemini" and gemini_key:
-            self._init_gemini(gemini_key)
-        elif preferred == "openai" and openai_key:
-            self._init_openai(openai_key)
-        elif preferred == "auto":
-            # Auto: try Gemini first, then OpenAI
-            if gemini_key:
-                self._init_gemini(gemini_key)
-            elif openai_key:
-                self._init_openai(openai_key)
+        if gemini_key and gemini_key.startswith("AIza"):
+            try:
+                genai.configure(api_key=gemini_key)
+                self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+                print("[OK] Command Analyzer ready (Gemini 1.5 Flash)")
+            except Exception as e:
+                print(f"[!] Gemini init error: {e}")
         else:
-            # Fallback
-            if gemini_key:
-                self._init_gemini(gemini_key)
-            elif openai_key:
-                self._init_openai(openai_key)
-    
-    def _init_gemini(self, api_key):
-        """Initialize Gemini"""
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key)
-            self.gemini_model = genai.GenerativeModel('gemini-pro')
-            self.ai_provider = "gemini"
-            print("[OK] AI Intent Analyzer ready (Gemini Pro)")
-        except Exception as e:
-            print(f"[!] Gemini init error: {e}")
-    
-    def _init_openai(self, api_key):
-        """Initialize OpenAI"""
-        try:
-            if OPENAI_AVAILABLE:
-                self.openai_client = OpenAI(api_key=api_key)
-                self.ai_provider = "openai"
-                print("[OK] AI Intent Analyzer ready (OpenAI GPT-4o)")
-        except Exception as e:
-            print(f"[!] OpenAI init error: {e}")
+            print("[!] Add Gemini API key in Settings for smart commands")
     
     def set_gui_callback(self, callback):
         """Set callback for sending async messages to GUI"""
@@ -185,10 +155,6 @@ class CommandHandler:
         Process user input using AI to understand intent
         Returns: (response_text, should_continue_listening)
         """
-        # Ensure AI is initialized
-        if not self.ai_provider:
-            self._init_ai()
-        
         command = command.strip()
         
         if not command:
@@ -199,6 +165,18 @@ class CommandHandler:
             return ("Yes? What do you need?", True)
         
         # Goodbye handling
+        goodbye_phrases = ["goodbye", "go to sleep", "bye", "that's all", "goodnight", "night", "later"]
+        if command.lower() in goodbye_phrases:
+            return ("Standing by. Say 'friday' when you need me.", False)
+        
+        # Quick check for obvious actions (no AI needed)
+        quick_action = self._quick_intent_check(command)
+        if quick_action:
+            return (quick_action, True)
+        
+        # For complex questions or conversation, use Gemini
+        response = self._get_smart_response(command)
+        return (response, True)
         goodbye_phrases = ["goodbye", "go to sleep", "bye", "that's all", "goodnight", "night", "later"]
         if command.lower() in goodbye_phrases:
             return (f"Standing by. Say '{WAKE_WORD}' when you need me.", False)
@@ -255,21 +233,17 @@ class CommandHandler:
     def _get_smart_response(self, command: str) -> str:
         """
         Single optimized AI call that handles both actions AND conversation.
-        Uses Gemini (FREE) or OpenAI as fallback.
+        Uses Gemini (FREE!)
         """
-        # Use Gemini if available (FREE!)
-        if self.ai_provider == "gemini" and self.gemini_model:
+        # Use Gemini if available
+        if self.gemini_model:
             return self._get_gemini_smart_response(command)
         
-        # Use OpenAI if available
-        if self.ai_provider == "openai" and self.openai_client:
-            return self._get_openai_smart_response(command)
-        
-        # Fallback to brain
+        # Fallback to brain (offline mode)
         return brain.get_response(command)
     
     def _get_gemini_smart_response(self, command: str) -> str:
-        """Get smart response from Gemini 2.0 Flash (FREE)"""
+        """Get smart response from Gemini 1.5 Flash (FREE)"""
         try:
             prompt = f"""You are F.R.I.D.A.Y., an AI assistant. Be witty and concise.
 Time: {datetime.now().strftime('%I:%M %p')}, OS: {self.system}
@@ -297,42 +271,10 @@ Response:"""
             error_str = str(e).lower()
             print(f"[Gemini] Error: {e}")
             
-            if "quota" in error_str or "limit" in error_str:
-                return "⚠️ Gemini quota reached. Try again later or add an OpenAI key."
-            
-            return brain.get_response(command)
-    
-    def _get_openai_smart_response(self, command: str) -> str:
-        """Get smart response from OpenAI"""
-        try:
-            system_prompt = f"""F.R.I.D.A.Y. AI assistant. Be witty, concise. Time: {datetime.now().strftime('%I:%M %p')}, OS: {self.system}
-
-ACTION? Reply JSON: {{"action": "X", "params": {{}}}}
-Actions: open_app, open_website, search_web, set_volume, set_brightness, set_timer, set_alarm, media_control, smart_lights
-
-QUESTION? Reply naturally. Max 2-3 sentences."""
-
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": command}
-                ],
-                max_tokens=200,
-                temperature=0.7
-            )
-            
-            result = response.choices[0].message.content.strip()
-            return self._process_ai_result(result, command)
-            
-        except Exception as e:
-            error_str = str(e).lower()
-            print(f"[OpenAI] Error: {e}")
-            
-            if "429" in str(e) or "rate" in error_str or "quota" in error_str:
-                return "⚠️ OpenAI rate limit. Account may be out of credits."
-            elif "401" in str(e) or "invalid" in error_str:
-                return "⚠️ Invalid API key. Check settings."
+            if "quota" in error_str or "limit" in error_str or "429" in str(e):
+                return "⚠️ Gemini rate limit. Wait a moment and try again."
+            elif "api_key" in error_str or "401" in str(e):
+                return "⚠️ Invalid API key. Check your Gemini key in Settings."
             
             return brain.get_response(command)
     

@@ -326,9 +326,16 @@ class SmartSpeechRecognizer:
     
     def _smart_listen_loop(self):
         """Smart listening loop with automatic silence detection"""
+        import signal
         consecutive_errors = 0
         max_consecutive_errors = 5
         microphone = None
+        
+        # Ignore SIGSEGV in this thread (Linux PyAudio bug workaround)
+        try:
+            signal.signal(signal.SIGSEGV, signal.SIG_IGN)
+        except:
+            pass
         
         while self.is_listening:
             with suppress_alsa_errors():
