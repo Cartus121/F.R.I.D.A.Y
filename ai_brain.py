@@ -493,33 +493,13 @@ Only include fields where you found actual data. Respond with JSON only."""
         return text
     
     def get_response(self, user_input: str, context: Dict = None) -> str:
-        """Get AI response for user input with memory, personality, and mood awareness"""
+        """Get AI response - OPTIMIZED for speed"""
         self.interaction_count += 1
         
-        # Track interaction time for pattern learning
-        self.interaction_times.append(datetime.now())
-        
-        # Analyze user's mood from input
-        self.current_mood = self._analyze_mood(user_input)
-        self.mood_history.append({"time": datetime.now(), "mood": self.current_mood})
-        
-        # Build context-aware prompt
+        # Simple input enhancement (minimal overhead)
         enhanced_input = user_input
-        if context:
-            context_str = "\n".join([f"- {k}: {v}" for k, v in context.items()])
-            enhanced_input = f"Context:\n{context_str}\n\nUser: {user_input}"
-        
         if self.user_name:
-            enhanced_input = f"[User's name is {self.user_name}]\n{enhanced_input}"
-        
-        # Add mood context
-        if self.current_mood != "neutral":
-            enhanced_input = f"[User's current mood: {self.current_mood}]\n{enhanced_input}"
-        
-        # Add conversation count context
-        total_convos = db.get_conversation_count()
-        if total_convos > 0:
-            enhanced_input = f"[This is conversation #{total_convos + 1} with this user]\n{enhanced_input}"
+            enhanced_input = f"[User: {self.user_name}] {user_input}"
         
         try:
             if self.ai_provider == "openai":
@@ -531,15 +511,10 @@ Only include fields where you found actual data. Respond with JSON only."""
             
             final_response = self._humanize_response(response)
             
-            # Save and learn
-            db.save_conversation(user_input, final_response)
-            self._extract_memories(user_input, final_response)
-            self._adjust_personality(user_input, final_response)
-            
-            # Deep analysis for learning (run in background to not slow response)
+            # Save conversation and learn in BACKGROUND (don't block response)
             import threading
             threading.Thread(
-                target=self._analyze_conversation_deeply,
+                target=self._background_learn,
                 args=(user_input, final_response),
                 daemon=True
             ).start()
@@ -548,33 +523,69 @@ Only include fields where you found actual data. Respond with JSON only."""
             
         except Exception as e:
             print(f"AI error: {e}")
-            return self._humanize_response(self._get_local_response(user_input))
+            return self._get_local_response(user_input)
+    
+    def _background_learn(self, user_input: str, response: str):
+        """Do all learning in background to not slow down responses"""
+        try:
+            db.save_conversation(user_input, response)
+            self._extract_memories(user_input, response)
+            self.interaction_times.append(datetime.now())
+            # Only do deep analysis occasionally (every 5 interactions)
+            if self.interaction_count % 5 == 0:
+                self._analyze_conversation_deeply(user_input, response)
+        except Exception as e:
+            pass  # Don't let learning errors affect anything
     
     def _get_openai_response(self, user_input: str) -> str:
-        """Get response from OpenAI - optimized for speed"""
-        dynamic_prompt = self._build_dynamic_prompt()
-        messages = [
-            {"role": "system", "content": dynamic_prompt},
-            {"role": "user", "content": user_input}
-        ]
+        """Get response from OpenAI - SPEED OPTIMIZED"""
+        # Shorter, faster prompt
+        system_prompt = self._get_fast_prompt()
+        
+        # Include last 2 exchanges for context (not 5)
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add minimal history
+        for exchange in self.session_history[-2:]:
+            messages.append({"role": "user", "content": exchange["user"]})
+            messages.append({"role": "assistant", "content": exchange["assistant"]})
+        
+        messages.append({"role": "user", "content": user_input})
         
         response = openai_client.chat.completions.create(
-            model=AI_MODEL,
+            model="gpt-4o-mini",  # Fastest model
             messages=messages,
-            max_tokens=MAX_TOKENS,
-            temperature=0.7,
-            presence_penalty=0.0,
-            frequency_penalty=0.0
+            max_tokens=250,  # Shorter responses = faster
+            temperature=0.7
         )
         
         assistant_response = response.choices[0].message.content
         
+        # Store for context
         self.session_history.append({
             "user": user_input,
             "assistant": assistant_response
         })
         
+        # Keep history small
+        if len(self.session_history) > 10:
+            self.session_history = self.session_history[-5:]
+        
         return assistant_response
+    
+    def _get_fast_prompt(self) -> str:
+        """Get a concise system prompt for faster processing"""
+        name = self.user_name or "User"
+        return f"""You are F.R.I.D.A.Y., an AI assistant like from Iron Man. You're witty, helpful, and concise.
+
+User's name: {name}
+Time: {datetime.now().strftime('%I:%M %p')}
+
+Rules:
+- Be concise (1-3 sentences usually)
+- Be helpful and friendly
+- For complex topics, explain clearly but briefly
+- You can handle coding, math, science, general knowledge"""
     
     def _get_gemini_response(self, user_input: str) -> str:
         """Get response from Google Gemini with memory"""

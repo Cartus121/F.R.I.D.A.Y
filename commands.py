@@ -132,20 +132,161 @@ class CommandHandler:
         if command.lower() in goodbye_phrases:
             return (f"Standing by. Say '{WAKE_WORD}' when you need me.", False)
         
-        # Use AI to analyze intent
-        intent_result = self._analyze_intent(command)
+        # Quick check for obvious actions (no AI needed)
+        quick_action = self._quick_intent_check(command)
+        if quick_action:
+            return (quick_action, True)
         
-        if intent_result and intent_result.get("intent") != "conversation":
-            # Execute the detected action
-            action_response = self._execute_intent(intent_result, command)
-            if action_response:
-                return (action_response, True)
-        
-        # Fall back to conversational AI response
-        context = self._build_context()
-        response = brain.get_response(command, context=context)
-        
+        # For complex questions or conversation, use single optimized AI call
+        response = self._get_smart_response(command)
         return (response, True)
+    
+    def _quick_intent_check(self, command: str) -> Optional[str]:
+        """
+        Quick pattern matching for obvious commands.
+        No AI call needed for simple things.
+        """
+        cmd_lower = command.lower().strip()
+        
+        # Time/Date - instant response
+        if any(x in cmd_lower for x in ["what time", "current time", "time is it"]):
+            return f"It's {datetime.now().strftime('%I:%M %p')}."
+        if any(x in cmd_lower for x in ["what date", "today's date", "what day"]):
+            return f"Today is {datetime.now().strftime('%A, %B %d, %Y')}."
+        
+        # Volume - quick patterns
+        if any(x in cmd_lower for x in ["volume up", "turn up", "louder", "crank up"]):
+            return self._set_volume("up")
+        if any(x in cmd_lower for x in ["volume down", "turn down", "quieter", "lower volume"]):
+            return self._set_volume("down")
+        if "mute" in cmd_lower:
+            return self._set_volume("mute")
+        
+        # Media - quick patterns
+        if any(x in cmd_lower for x in ["pause", "stop music", "stop playing"]):
+            return self._media_control("pause")
+        if cmd_lower in ["play", "resume", "continue"]:
+            return self._media_control("play")
+        if any(x in cmd_lower for x in ["next song", "skip", "next track"]):
+            return self._media_control("next")
+        
+        # System - quick patterns  
+        if any(x in cmd_lower for x in ["lock computer", "lock pc", "lock screen", "lock my"]):
+            return self._lock_pc()
+        if any(x in cmd_lower for x in ["system status", "how's my computer", "cpu usage"]):
+            return self._get_system_status()
+        if "screenshot" in cmd_lower:
+            return self._take_screenshot()
+        
+        # None matched - need AI
+        return None
+    
+    def _get_smart_response(self, command: str) -> str:
+        """
+        Single optimized AI call that handles both actions AND conversation.
+        Much faster than separate intent + response calls.
+        """
+        if not self.openai_client:
+            # Fallback to brain if no OpenAI in commands
+            return brain.get_response(command)
+        
+        try:
+            # Combined prompt: detect action OR have conversation
+            system_prompt = f"""You are F.R.I.D.A.Y., an AI assistant (like from Iron Man). Be helpful, witty, and concise.
+
+Current time: {datetime.now().strftime('%I:%M %p')}
+Current date: {datetime.now().strftime('%A, %B %d, %Y')}
+OS: {self.system}
+
+If the user wants an ACTION, respond with JSON: {{"action": "action_name", "params": {{}}}}
+Actions available: open_app, open_website, search_web, set_volume, set_brightness, set_timer, set_alarm, media_control, smart_lights
+
+If it's a QUESTION or CONVERSATION, just respond naturally (no JSON).
+
+Be concise. Max 2-3 sentences unless explaining something complex."""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": command}
+                ],
+                max_tokens=300,
+                temperature=0.7
+            )
+            
+            result = response.choices[0].message.content.strip()
+            
+            # Check if it's an action JSON
+            if result.startswith("{") and "action" in result:
+                try:
+                    # Clean markdown if present
+                    clean_result = result
+                    if "```" in result:
+                        clean_result = re.sub(r'```json?\s*', '', result)
+                        clean_result = re.sub(r'\s*```', '', clean_result)
+                    
+                    action_data = json.loads(clean_result)
+                    action = action_data.get("action", "")
+                    params = action_data.get("params", {})
+                    
+                    # Execute action
+                    action_response = self._execute_action_fast(action, params, command)
+                    if action_response:
+                        return action_response
+                except json.JSONDecodeError:
+                    pass  # Not valid JSON, treat as conversation
+            
+            # It's a conversation response
+            return result
+            
+        except Exception as e:
+            print(f"[SmartResponse] Error: {e}")
+            # Fallback to brain
+            return brain.get_response(command)
+    
+    def _execute_action_fast(self, action: str, params: Dict, original: str) -> Optional[str]:
+        """Execute detected action quickly"""
+        try:
+            if action == "open_app":
+                return self._open_app(params.get("app_name", "") or self._extract_app_name(original))
+            elif action == "open_website":
+                return self._open_website(params.get("url", "") or params.get("site", ""))
+            elif action == "search_web":
+                query = params.get("query", original)
+                platform = params.get("platform", "google")
+                return self._search_web(query, platform)
+            elif action == "set_volume":
+                return self._set_volume(params.get("level", "50"))
+            elif action == "set_brightness":
+                return self._set_brightness(params.get("level", "50"))
+            elif action == "set_timer":
+                return self._set_timer(
+                    minutes=params.get("minutes") or params.get("duration_minutes"),
+                    seconds=params.get("seconds"),
+                    hours=params.get("hours")
+                )
+            elif action == "set_alarm":
+                return self._set_alarm(params.get("time", ""))
+            elif action == "media_control":
+                return self._media_control(params.get("action", "pause"))
+            elif action == "smart_lights":
+                return self._control_smart_lights(params)
+        except Exception as e:
+            print(f"[ActionFast] Error: {e}")
+        return None
+    
+    def _extract_app_name(self, text: str) -> str:
+        """Extract app name from text"""
+        text_lower = text.lower()
+        apps = ["chrome", "firefox", "edge", "spotify", "discord", "steam", "vscode", "vs code",
+                "notepad", "calculator", "terminal", "explorer", "files", "settings"]
+        for app in apps:
+            if app in text_lower:
+                return app
+        # Return last word as guess
+        words = text.split()
+        return words[-1] if words else ""
     
     def _analyze_intent(self, user_input: str) -> Optional[Dict]:
         """
