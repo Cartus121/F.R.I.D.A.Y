@@ -150,13 +150,25 @@ class CommandHandler:
         if any(phrase in command for phrase in ["read my notes", "my notes", "show notes", "list notes"]):
             return self._get_notes(), True
         
-        # === Weather ===
-        if any(phrase in command for phrase in ["weather", "temperature", "forecast"]):
+        # === Weather (ONLY when explicitly asking about weather/outside) ===
+        weather_triggers = ["weather", "forecast", "outside", "rain", "sunny", "cloudy", "umbrella", "jacket"]
+        if any(phrase in command for phrase in weather_triggers) and "pc" not in command and "computer" not in command and "system" not in command:
             return self._get_weather(), True
         
-        # === System ===
-        if any(phrase in command for phrase in ["system status", "system info", "how's my computer", "pc status", "diagnostics"]):
-            return self._get_system_status(), True
+        # === System Status (expanded triggers for natural language) ===
+        system_triggers = [
+            "system status", "system info", "pc status", "computer status",
+            "diagnostics", "how we looking", "how are we looking", "are we good",
+            "how's my pc", "how's my computer", "how's the system", "how's the pc",
+            "cpu", "ram", "memory", "storage", "disk", "temps", "temperature",
+            "health check", "status check", "run diagnostics", "check system",
+            "how's everything", "everything okay", "all good"
+        ]
+        # Check if asking about system (not weather)
+        if any(phrase in command for phrase in system_triggers):
+            # Make sure they're not asking about weather temperature
+            if "outside" not in command and "weather" not in command:
+                return self._get_system_status(), True
         
         # === Web Search (detect "search" keyword) ===
         if "search" in command:
@@ -522,25 +534,45 @@ class CommandHandler:
     # ==================== SYSTEM ====================
     
     def _get_system_status(self) -> str:
+        """Get system status with natural language response"""
         try:
-            cpu = psutil.cpu_percent(interval=1)
+            cpu = psutil.cpu_percent(interval=0.5)
             mem = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
             
-            # Add assessment
-            status = "nominal"
-            if cpu > 80 or mem.percent > 85:
-                status = "elevated"
-            if cpu > 95 or mem.percent > 95:
-                status = "critical"
+            # Calculate free memory in GB
+            mem_free_gb = mem.available / (1024**3)
+            disk_free_gb = disk.free / (1024**3)
             
-            return (
-                f"Systems {status}. CPU at {cpu}%, "
-                f"memory at {mem.percent}%, "
-                f"storage at {disk.percent}%."
-            )
+            # Natural language responses based on status
+            if cpu > 90 or mem.percent > 90:
+                # Critical
+                responses = [
+                    f"We're running hot. CPU at {cpu}%, memory at {mem.percent}%. Might want to close some things.",
+                    f"Things are getting tight. {cpu}% CPU, {mem.percent}% memory used. Consider freeing up some resources.",
+                    f"Pushing it a bit - CPU {cpu}%, RAM {mem.percent}%. Not critical, but keep an eye on it."
+                ]
+            elif cpu > 70 or mem.percent > 75:
+                # Elevated
+                responses = [
+                    f"Running a bit warm but nothing concerning. CPU {cpu}%, memory at {mem.percent}%.",
+                    f"Moderate load right now. {cpu}% CPU, {mem.percent}% RAM. {mem_free_gb:.1f}GB free.",
+                    f"Working hard but handling it. CPU {cpu}%, {mem_free_gb:.1f}GB memory available."
+                ]
+            else:
+                # Good
+                responses = [
+                    f"All good. CPU chilling at {cpu}%, memory at {mem.percent}%, plenty of storage left.",
+                    f"Looking healthy. {cpu}% CPU, {mem_free_gb:.1f}GB RAM free, {disk_free_gb:.0f}GB disk space.",
+                    f"Running smooth. CPU {cpu}%, memory {mem.percent}%. Nothing to worry about.",
+                    f"We're good. {cpu}% CPU usage, {mem.percent}% memory. Systems nominal."
+                ]
+            
+            import random
+            return random.choice(responses)
+            
         except Exception as e:
-            return f"Diagnostics unavailable: {str(e)[:30]}"
+            return f"Couldn't pull diagnostics right now. Something's blocking access."
     
     # ==================== WEB SEARCH ====================
     
