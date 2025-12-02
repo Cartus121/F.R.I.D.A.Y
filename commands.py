@@ -1234,10 +1234,11 @@ Respond with ONLY valid JSON, no explanation."""
     def _smart_home_setup_guide(self) -> str:
         """Guide user on setting up smart home"""
         return ("To control smart lights, I need to be connected to your smart home system. "
-                "Create a file at ~/friday-assistant/smart_home.json with your setup. "
-                "I support Philips Hue, Home Assistant, LIFX, and Tuya. "
-                "Example for Home Assistant: "
-                '{\"platform\": \"home_assistant\", \"host\": \"http://your-ip:8123\", \"token\": \"your-long-lived-token\"}')
+                "Create a file at ~/friday-assistant/smart_home.json with your setup.\n\n"
+                "I support: Philips Hue, Home Assistant, LIFX, Tuya/Smart Life, and Fonri!\n\n"
+                "For Fonri lights (uses Tuya platform):\n"
+                '{"platform": "tuya", "devices": [{"name": "Light", "id": "device_id", "ip": "192.168.1.x", "key": "local_key", "version": 3.3}]}\n\n'
+                "To get device info: pip install tinytuya && python -m tinytuya wizard")
     
     def _control_hue_lights(self, config: Dict, action: str, device: str, brightness: int = None, color: str = None) -> str:
         """Control Philips Hue lights"""
@@ -1462,12 +1463,92 @@ Respond with ONLY valid JSON, no explanation."""
             return f"Error controlling LIFX: {str(e)[:50]}"
     
     def _control_tuya_device(self, config: Dict, device_type: str, action: str, device: str, value: Any = None) -> str:
-        """Control Tuya/Smart Life devices"""
-        # Tuya requires their SDK which is complex - provide guidance
-        return ("Tuya devices require the TinyTuya library. "
-                "Install it with: pip install tinytuya. "
-                "Then run 'python -m tinytuya scan' to find your devices. "
-                "For easier setup, consider using Home Assistant with Tuya integration.")
+        """
+        Control Tuya/Smart Life/Fonri devices
+        Fonri devices use Tuya platform
+        """
+        try:
+            import tinytuya
+            TINYTUYA_AVAILABLE = True
+        except ImportError:
+            TINYTUYA_AVAILABLE = False
+        
+        if not TINYTUYA_AVAILABLE:
+            return ("To control Fonri/Tuya lights, I need the TinyTuya library. "
+                   "Install it with: pip install tinytuya. "
+                   "Then I'll need your device info from the Tuya IoT Platform.")
+        
+        # Get device config
+        devices = config.get("devices", [])
+        
+        if not devices:
+            return self._tuya_setup_guide()
+        
+        # Find matching device
+        target_device = None
+        for dev in devices:
+            dev_name = dev.get("name", "").lower()
+            if not device or device in dev_name or device == "all":
+                target_device = dev
+                break
+        
+        if not target_device:
+            device_names = [d.get("name", "Unknown") for d in devices]
+            return f"Couldn't find device '{device}'. Available: {', '.join(device_names)}"
+        
+        try:
+            # Connect to device
+            d = tinytuya.BulbDevice(
+                dev_id=target_device.get("id"),
+                address=target_device.get("ip"),
+                local_key=target_device.get("key"),
+                version=target_device.get("version", 3.3)
+            )
+            d.set_socketPersistent(False)
+            
+            # Execute action
+            if action in ["on", "turn on"]:
+                d.turn_on()
+                return f"{target_device.get('name', 'Light')} turned on."
+            elif action in ["off", "turn off"]:
+                d.turn_off()
+                return f"{target_device.get('name', 'Light')} turned off."
+            elif action == "toggle":
+                status = d.status()
+                is_on = status.get("dps", {}).get("20", False) or status.get("dps", {}).get("1", False)
+                if is_on:
+                    d.turn_off()
+                    return f"{target_device.get('name', 'Light')} turned off."
+                else:
+                    d.turn_on()
+                    return f"{target_device.get('name', 'Light')} turned on."
+            elif action in ["dim", "bright"] or value is not None:
+                # Set brightness (Tuya uses 10-1000 scale typically)
+                if action == "dim":
+                    brightness = 100  # 10%
+                elif action == "bright":
+                    brightness = 1000  # 100%
+                elif value is not None:
+                    brightness = int(int(value) * 10)  # Convert 0-100 to 0-1000
+                d.set_brightness(brightness)
+                d.turn_on()
+                return f"{target_device.get('name', 'Light')} brightness set."
+            
+            return "Done."
+            
+        except Exception as e:
+            print(f"[Tuya] Error: {e}")
+            return f"Couldn't control device. Make sure it's on the same network. Error: {str(e)[:40]}"
+    
+    def _tuya_setup_guide(self) -> str:
+        """Guide for setting up Tuya/Fonri devices"""
+        return ("To control your Fonri lights, I need device credentials. Here's how:\n\n"
+                "1. Install TinyTuya: pip install tinytuya\n"
+                "2. Create account at iot.tuya.com\n"
+                "3. Create a Cloud Project and link your Fonri app\n"
+                "4. Run: python -m tinytuya wizard\n"
+                "5. Save the device info to ~/friday-assistant/smart_home.json like:\n"
+                '{"platform": "tuya", "devices": [{"name": "Living Room", "id": "xxx", "ip": "192.168.1.x", "key": "xxx", "version": 3.3}]}')
 
 
 # Global instance
