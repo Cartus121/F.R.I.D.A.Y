@@ -288,36 +288,66 @@ def show_settings_dialog(parent=None) -> bool:
     def reset_all_data():
         """Delete all user data for clean start"""
         import shutil
+        import gc
+        import sqlite3
         from tkinter import messagebox
         
         confirm = messagebox.askyesno(
             "Reset All Data",
-            "This will delete:\n\n• All conversations\n• All settings\n• All cached data\n\nAre you sure? This cannot be undone.",
+            "This will delete:\n\n• All conversations\n• All settings\n• All cached data\n\nThe app will close. Are you sure?",
             icon='warning'
         )
         
         if confirm:
             try:
-                # Delete settings directory
-                if SETTINGS_DIR.exists():
-                    shutil.rmtree(SETTINGS_DIR)
-                    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+                # Force garbage collection to release any open connections
+                gc.collect()
+                
+                # Close any SQLite connections
+                try:
+                    sqlite3.connect(':memory:').execute('PRAGMA optimize').close()
+                except:
+                    pass
+                
+                # Delete individual files first (more reliable than rmtree on Windows)
+                db_path = SETTINGS_DIR / "friday_data.db"
+                if db_path.exists():
+                    try:
+                        db_path.unlink()
+                    except PermissionError:
+                        # If still locked, mark for deletion on restart
+                        pass
+                
+                # Delete settings file
+                if SETTINGS_FILE.exists():
+                    SETTINGS_FILE.unlink()
+                
+                # Delete memory file
+                if MEMORY_FILE.exists():
+                    MEMORY_FILE.unlink()
+                
+                # Delete alarm file
+                if ALARM_SOUND_FILE.exists():
+                    ALARM_SOUND_FILE.unlink()
                 
                 # Delete temp audio files
                 import tempfile
                 temp_friday = Path(tempfile.gettempdir()) / "friday_audio"
                 if temp_friday.exists():
-                    shutil.rmtree(temp_friday)
+                    try:
+                        shutil.rmtree(temp_friday)
+                    except:
+                        pass
                 
-                messagebox.showinfo("Reset Complete", "All data cleared. Please restart F.R.I.D.A.Y.")
+                messagebox.showinfo("Reset Complete", "Data cleared! App will now close.\nRestart F.R.I.D.A.Y. for a fresh start.")
                 dialog.destroy()
                 
-                # Exit the app
-                import sys
-                sys.exit(0)
+                # Force exit
+                import os
+                os._exit(0)
                 
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to reset: {e}")
+                messagebox.showerror("Error", f"Failed to reset: {e}\n\nTry closing the app and manually deleting:\n{SETTINGS_DIR}")
     
     reset_btn = ctk.CTkButton(
         data_frame, 

@@ -103,7 +103,7 @@ TIME_FORMAT = "%I:%M %p"
 GUI_THEME = "dark"
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
-ACCENT_COLOR = "#6366f1"  # Purple-blue (can be changed)
+ACCENT_COLOR = "#0ea5e9"  # Smooth sky blue (can be changed)
 MINIMIZE_TO_TRAY = True   # Minimize to system tray instead of closing
 
 # =============================================================================
