@@ -122,9 +122,9 @@ class CommandHandler:
                 
                 if gemini_key:
                     genai.configure(api_key=gemini_key)
-                    self.gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                    self.gemini_model = genai.GenerativeModel('gemini-pro')
                     self.ai_provider = "gemini"
-                    print("[OK] AI Intent Analyzer ready (Gemini 2.0 Flash - FREE)")
+                    print("[OK] AI Intent Analyzer ready (Gemini Pro - FREE)")
                     return
             except Exception as e:
                 print(f"[!] Gemini init error: {e}")

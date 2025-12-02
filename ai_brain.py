@@ -87,10 +87,10 @@ try:
     gemini_key = _get_gemini_api_key()
     if gemini_key:
         genai.configure(api_key=gemini_key)
-        # Use Gemini 2.0 Flash - FREE, fast, and powerful!
-        gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        # Use Gemini Pro - powerful and FREE!
+        gemini_model = genai.GenerativeModel('gemini-pro')
         GEMINI_AVAILABLE = True
-        print("[OK] Gemini 2.0 Flash connected (FREE)")
+        print("[OK] Gemini Pro connected (FREE)")
     else:
         print("[!] Gemini API key not found - get FREE key at ai.google.dev")
 except ImportError:
@@ -123,7 +123,7 @@ class AIBrain:
         # Determine which AI to use - PREFER GEMINI (FREE!)
         if GEMINI_AVAILABLE:
             self.ai_provider = "gemini"
-            print("Using Google Gemini 2.0 Flash (FREE)")
+            print("Using Google Gemini Pro (FREE)")
         elif OPENAI_AVAILABLE:
             self.ai_provider = "openai"
             self.openai_client = openai_client

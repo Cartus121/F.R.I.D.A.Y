@@ -226,11 +226,19 @@ def show_settings_dialog(parent=None) -> bool:
     api_frame.pack(fill="x", pady=5)
     
     ctk.CTkLabel(api_frame, text="OpenAI API Key:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
-    ctk.CTkLabel(api_frame, text="Required for AI responses and internet features", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=10, pady=(0, 3))
+    ctk.CTkLabel(api_frame, text="Optional - backup AI provider (paid)", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=10, pady=(0, 3))
     api_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="sk-proj-...", show="*")
     api_entry.pack(padx=10, pady=(0, 8))
     if settings.get("openai_api_key"):
         api_entry.insert(0, settings["openai_api_key"])
+    
+    # Google Gemini API Key (FREE!)
+    ctk.CTkLabel(api_frame, text="Google Gemini API Key (FREE):", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
+    ctk.CTkLabel(api_frame, text="Get FREE key at ai.google.dev - Recommended!", font=ctk.CTkFont(size=10), text_color="#22c55e").pack(anchor="w", padx=10, pady=(0, 3))
+    gemini_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="AIza...", show="*")
+    gemini_entry.pack(padx=10, pady=(0, 8))
+    if settings.get("google_api_key"):
+        gemini_entry.insert(0, settings["google_api_key"])
     
     # OpenWeather API Key
     ctk.CTkLabel(api_frame, text="OpenWeather API Key (optional):", font=ctk.CTkFont(size=12)).pack(anchor="w", padx=10, pady=(8, 3))
@@ -376,10 +384,20 @@ def show_settings_dialog(parent=None) -> bool:
     
     def save_and_close():
         api_key = api_entry.get().strip()
+        gemini_key = gemini_entry.get().strip()
         
-        # API key is optional - warn but don't block
+        # API key validation - both are optional now
         if api_key and not api_key.startswith("sk-"):
-            error_label.configure(text="⚠️ Invalid API key format (should start with 'sk-')")
+            error_label.configure(text="⚠️ Invalid OpenAI key format (should start with 'sk-')")
+            return
+        
+        if gemini_key and not gemini_key.startswith("AIza"):
+            error_label.configure(text="⚠️ Invalid Gemini key format (should start with 'AIza')")
+            return
+        
+        # Need at least one AI key
+        if not api_key and not gemini_key:
+            error_label.configure(text="⚠️ Please add at least one API key (Gemini is FREE!)")
             return
         
         try:
@@ -390,15 +408,18 @@ def show_settings_dialog(parent=None) -> bool:
         lang_reverse = {"English": "en", "Русский": "ru", "Auto-detect": "auto"}
         
         settings["openai_api_key"] = api_key
+        settings["google_api_key"] = gemini_key
         settings["openweather_api_key"] = weather_entry.get().strip()
         settings["voice"] = "F.R.I.D.A.Y. (Irish Female)"
         settings["ai_name"] = "F.R.I.D.A.Y."
         settings["wake_word"] = wake_entry.get().strip().lower() or "friday"
         settings["language"] = lang_reverse.get(lang_var.get(), "en")
         
-        # Apply API key to environment if provided
+        # Apply API keys to environment
         if api_key:
             os.environ["OPENAI_API_KEY"] = api_key
+        if gemini_key:
+            os.environ["GOOGLE_API_KEY"] = gemini_key
         settings["conversation_timeout"] = timeout
         settings["minimize_to_tray"] = tray_var.get()
         settings["notifications_enabled"] = notif_var.get()
