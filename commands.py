@@ -130,8 +130,12 @@ class CommandHandler:
             return self._get_system_status(), True
         
         # === Web Search ===
-        if any(phrase in command for phrase in ["search for", "look up", "google", "find information"]):
+        if any(phrase in command for phrase in ["search for", "look up", "google", "find information", "search google", "search firefox", "search in"]):
             return self._web_search(command), True
+        
+        # === Open URL / Website ===
+        if any(phrase in command for phrase in ["go to website", "open website", "visit"]):
+            return self._open_website(command), True
         
         # === Open Application ===
         if command.startswith("open "):
@@ -512,29 +516,60 @@ class CommandHandler:
     # ==================== WEB SEARCH ====================
     
     def _web_search(self, command: str) -> str:
-        for phrase in ["search for", "look up", "google", "find information about", "find information on"]:
-            command = command.replace(phrase, "")
+        """Search the web - opens in browser"""
+        import platform
+        system = platform.system()
+        
+        # Clean up the query
+        original_command = command.lower()
+        for phrase in ["search for", "look up", "google", "find information about", "find information on", 
+                       "search google for", "search firefox for", "search in firefox", "search in chrome",
+                       "search in google", "search in browser"]:
+            command = command.lower().replace(phrase, "")
         
         query = command.strip()
         if not query:
             return "What should I search for?"
         
-        if DDGS_AVAILABLE:
-            try:
-                with DDGS() as ddgs:
-                    results = list(ddgs.text(query, max_results=3))
-                    
-                if results:
-                    first = results[0]
-                    title = first.get('title', 'Result')
-                    body = first.get('body', '')[:200]
-                    return f"Found: {title}. {body}"
-            except Exception as e:
-                print(f"Search error: {e}")
+        # Determine which browser/search engine to use
+        use_google = "google" in original_command
+        use_firefox = "firefox" in original_command
         
-        search_url = f"https://duckduckgo.com/?q={query.replace(' ', '+')}"
-        webbrowser.open(search_url)
-        return f"Opening search for '{query}'."
+        # Build search URL
+        if use_google:
+            search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        else:
+            search_url = f"https://duckduckgo.com/?q={query.replace(' ', '+')}"
+        
+        # Open in specific browser if requested
+        try:
+            if use_firefox:
+                if system == "Windows":
+                    subprocess.Popen(["start", "firefox", search_url], shell=True)
+                else:
+                    subprocess.Popen(["firefox", search_url])
+            else:
+                webbrowser.open(search_url)
+        except:
+            webbrowser.open(search_url)
+        
+        return f"Searching for '{query}'."
+    
+    def _open_website(self, command: str) -> str:
+        """Open a specific website"""
+        for phrase in ["go to website", "open website", "visit", "go to"]:
+            command = command.replace(phrase, "")
+        
+        url = command.strip()
+        if not url:
+            return "Which website should I open?"
+        
+        # Add https if not present
+        if not url.startswith("http"):
+            url = "https://" + url
+        
+        webbrowser.open(url)
+        return f"Opening {url}."
     
     # ==================== APPLICATIONS ====================
     
@@ -546,21 +581,49 @@ class CommandHandler:
         
         if system == "Windows":
             app_commands = {
+                # Browsers
                 "browser": "start chrome",
                 "chrome": "start chrome",
                 "firefox": "start firefox",
                 "edge": "start msedge",
+                "brave": "start brave",
+                # File locations
                 "files": "explorer",
                 "file manager": "explorer",
+                "downloads": "explorer shell:Downloads",
+                "download folder": "explorer shell:Downloads",
+                "download files": "explorer shell:Downloads",
+                "documents": "explorer shell:Personal",
+                "my documents": "explorer shell:Personal",
+                "pictures": "explorer shell:My Pictures",
+                "my pictures": "explorer shell:My Pictures",
+                "music": "explorer shell:My Music",
+                "my music": "explorer shell:My Music",
+                "videos": "explorer shell:My Video",
+                "my videos": "explorer shell:My Video",
+                "desktop": "explorer shell:Desktop",
+                # System
                 "terminal": "start cmd",
+                "command prompt": "start cmd",
                 "powershell": "start powershell",
                 "calculator": "calc",
                 "notepad": "notepad",
                 "settings": "start ms-settings:",
+                "control panel": "control",
+                "task manager": "taskmgr",
+                # Dev tools
                 "code": "code",
                 "vs code": "code",
+                "visual studio code": "code",
+                # Apps
                 "spotify": "start spotify:",
                 "discord": "start discord:",
+                "steam": "start steam:",
+                "teams": "start msteams:",
+                "outlook": "start outlook",
+                "word": "start winword",
+                "excel": "start excel",
+                "powerpoint": "start powerpnt",
             }
         else:
             app_commands = {

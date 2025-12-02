@@ -184,7 +184,7 @@ class ModernGUI:
             font=ctk.CTkFont(size=12, weight="bold"),
             command=self._on_mic_click,
             fg_color=ACCENT_COLOR,
-            hover_color="#0284c7"
+            hover_color="#7c3aed"
         )
         self.mic_button.grid(row=0, column=1, padx=5, pady=10)
         
@@ -196,7 +196,7 @@ class ModernGUI:
             font=ctk.CTkFont(size=14),
             command=self._on_text_submit,
             fg_color=ACCENT_COLOR,
-            hover_color="#0284c7"
+            hover_color="#7c3aed"
         )
         self.send_button.grid(row=0, column=2, padx=10, pady=10)
     
