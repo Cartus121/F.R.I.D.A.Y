@@ -77,6 +77,8 @@ AVAILABLE ACTIONS (return the exact action name):
 - "get_time" - get current time
 - "get_date" - get current date
 - "knowledge_search" - look up factual information (extract: query)
+- "smart_lights" - control smart lights/bulbs (extract: action as "on"/"off"/"toggle"/"dim"/"bright", device_name, brightness 0-100, color)
+- "smart_home" - control other smart home devices (extract: device_type, device_name, action, value)
 - "conversation" - just talking, no action needed
 
 RESPOND WITH JSON ONLY:
@@ -319,6 +321,13 @@ Respond with ONLY valid JSON, no explanation."""
             elif intent == "knowledge_search":
                 query = params.get("query", original_input)
                 return self._search_knowledge(query)
+            
+            # === SMART HOME ===
+            elif intent == "smart_lights":
+                return self._control_smart_lights(params)
+            
+            elif intent == "smart_home":
+                return self._control_smart_home(params)
             
             return None
             
@@ -1136,6 +1145,329 @@ Respond with ONLY valid JSON, no explanation."""
             pass
         
         return ""
+    
+    def _control_smart_lights(self, params: Dict) -> str:
+        """
+        Control smart lights/bulbs
+        Supports: Philips Hue, LIFX, Tuya, Home Assistant, etc.
+        """
+        action = params.get("action", "toggle").lower()
+        device_name = params.get("device_name", "").lower()
+        brightness = params.get("brightness")
+        color = params.get("color", "").lower()
+        
+        # Try to get smart home config
+        smart_config = self._get_smart_home_config()
+        
+        if not smart_config:
+            return self._smart_home_setup_guide()
+        
+        # Determine which platform to use
+        platform = smart_config.get("platform", "").lower()
+        
+        try:
+            if platform == "hue":
+                return self._control_hue_lights(smart_config, action, device_name, brightness, color)
+            elif platform == "home_assistant":
+                return self._control_home_assistant(smart_config, "light", action, device_name, brightness, color)
+            elif platform == "tuya":
+                return self._control_tuya_device(smart_config, "light", action, device_name, brightness)
+            elif platform == "lifx":
+                return self._control_lifx_lights(smart_config, action, device_name, brightness, color)
+            else:
+                # Try Home Assistant as default (most universal)
+                return self._control_home_assistant(smart_config, "light", action, device_name, brightness, color)
+        except Exception as e:
+            print(f"[SmartHome] Error: {e}")
+            return f"Couldn't control lights. Error: {str(e)[:50]}"
+    
+    def _control_smart_home(self, params: Dict) -> str:
+        """Control generic smart home devices"""
+        device_type = params.get("device_type", "").lower()
+        device_name = params.get("device_name", "").lower()
+        action = params.get("action", "toggle").lower()
+        value = params.get("value")
+        
+        smart_config = self._get_smart_home_config()
+        
+        if not smart_config:
+            return self._smart_home_setup_guide()
+        
+        try:
+            platform = smart_config.get("platform", "home_assistant").lower()
+            
+            if platform == "home_assistant":
+                return self._control_home_assistant(smart_config, device_type, action, device_name, value)
+            else:
+                return "This device type is only supported with Home Assistant."
+        except Exception as e:
+            return f"Couldn't control device. Error: {str(e)[:50]}"
+    
+    def _get_smart_home_config(self) -> Optional[Dict]:
+        """Get smart home configuration from settings"""
+        try:
+            # Try to load from settings file
+            settings_path = os.path.join(os.path.expanduser("~"), "friday-assistant", "smart_home.json")
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r') as f:
+                    return json.load(f)
+        except:
+            pass
+        
+        # Try environment variables
+        if os.environ.get("HASS_TOKEN"):
+            return {
+                "platform": "home_assistant",
+                "host": os.environ.get("HASS_HOST", "http://homeassistant.local:8123"),
+                "token": os.environ.get("HASS_TOKEN")
+            }
+        
+        if os.environ.get("HUE_BRIDGE_IP"):
+            return {
+                "platform": "hue",
+                "bridge_ip": os.environ.get("HUE_BRIDGE_IP"),
+                "username": os.environ.get("HUE_USERNAME", "")
+            }
+        
+        return None
+    
+    def _smart_home_setup_guide(self) -> str:
+        """Guide user on setting up smart home"""
+        return ("To control smart lights, I need to be connected to your smart home system. "
+                "Create a file at ~/friday-assistant/smart_home.json with your setup. "
+                "I support Philips Hue, Home Assistant, LIFX, and Tuya. "
+                "Example for Home Assistant: "
+                '{\"platform\": \"home_assistant\", \"host\": \"http://your-ip:8123\", \"token\": \"your-long-lived-token\"}')
+    
+    def _control_hue_lights(self, config: Dict, action: str, device: str, brightness: int = None, color: str = None) -> str:
+        """Control Philips Hue lights"""
+        bridge_ip = config.get("bridge_ip", "")
+        username = config.get("username", "")
+        
+        if not bridge_ip or not username:
+            return "Hue bridge not configured. Need bridge IP and username."
+        
+        base_url = f"http://{bridge_ip}/api/{username}"
+        
+        try:
+            # Get all lights
+            response = requests.get(f"{base_url}/lights", timeout=5)
+            lights = response.json()
+            
+            # Find matching light(s)
+            target_ids = []
+            for light_id, light_data in lights.items():
+                light_name = light_data.get("name", "").lower()
+                if not device or device in light_name or device == "all" or device == "lights":
+                    target_ids.append(light_id)
+            
+            if not target_ids:
+                return f"Couldn't find light named '{device}'."
+            
+            # Build state command
+            state = {}
+            if action in ["on", "turn on"]:
+                state["on"] = True
+            elif action in ["off", "turn off"]:
+                state["on"] = False
+            elif action == "toggle":
+                # Get current state of first light and toggle
+                first_light = lights.get(target_ids[0], {})
+                current_on = first_light.get("state", {}).get("on", False)
+                state["on"] = not current_on
+            
+            if brightness is not None:
+                # Hue uses 0-254 for brightness
+                state["bri"] = int(brightness * 254 / 100)
+                state["on"] = True  # Turn on when setting brightness
+            
+            if color:
+                # Convert color name to Hue values
+                color_map = {
+                    "red": {"hue": 0, "sat": 254},
+                    "orange": {"hue": 6000, "sat": 254},
+                    "yellow": {"hue": 12000, "sat": 254},
+                    "green": {"hue": 25500, "sat": 254},
+                    "blue": {"hue": 46920, "sat": 254},
+                    "purple": {"hue": 50000, "sat": 254},
+                    "pink": {"hue": 56100, "sat": 200},
+                    "white": {"hue": 0, "sat": 0},
+                    "warm": {"ct": 400},
+                    "cool": {"ct": 200},
+                }
+                if color in color_map:
+                    state.update(color_map[color])
+                    state["on"] = True
+            
+            # Send command to all target lights
+            for light_id in target_ids:
+                requests.put(f"{base_url}/lights/{light_id}/state", json=state, timeout=5)
+            
+            # Build response
+            action_text = "on" if state.get("on", True) else "off"
+            if len(target_ids) == 1:
+                light_name = lights[target_ids[0]].get("name", "Light")
+                return f"{light_name} turned {action_text}."
+            else:
+                return f"{len(target_ids)} lights turned {action_text}."
+                
+        except Exception as e:
+            print(f"[Hue] Error: {e}")
+            return "Couldn't connect to Hue bridge."
+    
+    def _control_home_assistant(self, config: Dict, device_type: str, action: str, 
+                                device: str = "", value: Any = None, color: str = None) -> str:
+        """Control devices via Home Assistant"""
+        host = config.get("host", "").rstrip("/")
+        token = config.get("token", "")
+        
+        if not host or not token:
+            return "Home Assistant not configured. Need host URL and token."
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            # Map device types to Home Assistant domains
+            domain_map = {
+                "light": "light",
+                "lights": "light",
+                "switch": "switch",
+                "plug": "switch",
+                "fan": "fan",
+                "climate": "climate",
+                "thermostat": "climate",
+                "lock": "lock",
+                "cover": "cover",
+                "blinds": "cover",
+                "curtains": "cover",
+            }
+            domain = domain_map.get(device_type, "light")
+            
+            # Map actions to Home Assistant services
+            service_map = {
+                "on": "turn_on",
+                "turn on": "turn_on",
+                "off": "turn_off",
+                "turn off": "turn_off",
+                "toggle": "toggle",
+                "dim": "turn_on",
+                "bright": "turn_on",
+                "lock": "lock",
+                "unlock": "unlock",
+                "open": "open_cover",
+                "close": "close_cover",
+            }
+            service = service_map.get(action, "toggle")
+            
+            # Find entity ID
+            entity_id = None
+            if device:
+                # Try to find matching entity
+                states_response = requests.get(f"{host}/api/states", headers=headers, timeout=10)
+                states = states_response.json()
+                
+                for entity in states:
+                    eid = entity.get("entity_id", "")
+                    friendly_name = entity.get("attributes", {}).get("friendly_name", "").lower()
+                    
+                    if eid.startswith(f"{domain}.") and (device in friendly_name or device in eid):
+                        entity_id = eid
+                        break
+            
+            # Build service data
+            data = {}
+            if entity_id:
+                data["entity_id"] = entity_id
+            
+            if domain == "light":
+                if isinstance(value, int) or (isinstance(value, str) and value.isdigit()):
+                    data["brightness_pct"] = int(value)
+                elif action == "dim":
+                    data["brightness_pct"] = 30
+                elif action == "bright":
+                    data["brightness_pct"] = 100
+                
+                if color:
+                    color_map = {
+                        "red": [255, 0, 0],
+                        "green": [0, 255, 0],
+                        "blue": [0, 0, 255],
+                        "yellow": [255, 255, 0],
+                        "purple": [128, 0, 128],
+                        "orange": [255, 165, 0],
+                        "pink": [255, 192, 203],
+                        "white": [255, 255, 255],
+                    }
+                    if color in color_map:
+                        data["rgb_color"] = color_map[color]
+            
+            # Call Home Assistant service
+            url = f"{host}/api/services/{domain}/{service}"
+            response = requests.post(url, headers=headers, json=data, timeout=10)
+            
+            if response.status_code == 200:
+                device_display = device or domain
+                action_display = "on" if "on" in service else "off" if "off" in service else action
+                return f"{device_display.title()} turned {action_display}."
+            else:
+                return f"Home Assistant error: {response.status_code}"
+                
+        except requests.exceptions.ConnectionError:
+            return "Couldn't connect to Home Assistant. Check if it's running."
+        except Exception as e:
+            print(f"[HomeAssistant] Error: {e}")
+            return "Error controlling device via Home Assistant."
+    
+    def _control_lifx_lights(self, config: Dict, action: str, device: str, brightness: int = None, color: str = None) -> str:
+        """Control LIFX lights"""
+        token = config.get("token", "")
+        
+        if not token:
+            return "LIFX token not configured."
+        
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        try:
+            # Selector for which lights to control
+            selector = f"label:{device}" if device else "all"
+            
+            if action in ["on", "turn on"]:
+                power = "on"
+            elif action in ["off", "turn off"]:
+                power = "off"
+            else:
+                power = None
+            
+            # Build state
+            state = {}
+            if power:
+                state["power"] = power
+            if brightness is not None:
+                state["brightness"] = brightness / 100.0
+            if color:
+                state["color"] = color
+            
+            url = f"https://api.lifx.com/v1/lights/{selector}/state"
+            response = requests.put(url, headers=headers, json=state, timeout=10)
+            
+            if response.status_code == 207:  # Multi-status (LIFX returns this)
+                return f"Lights {'turned on' if power == 'on' else 'turned off' if power == 'off' else 'updated'}."
+            else:
+                return f"LIFX error: {response.status_code}"
+                
+        except Exception as e:
+            return f"Error controlling LIFX: {str(e)[:50]}"
+    
+    def _control_tuya_device(self, config: Dict, device_type: str, action: str, device: str, value: Any = None) -> str:
+        """Control Tuya/Smart Life devices"""
+        # Tuya requires their SDK which is complex - provide guidance
+        return ("Tuya devices require the TinyTuya library. "
+                "Install it with: pip install tinytuya. "
+                "Then run 'python -m tinytuya scan' to find your devices. "
+                "For easier setup, consider using Home Assistant with Tuya integration.")
 
 
 # Global instance

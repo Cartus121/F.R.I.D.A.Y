@@ -729,13 +729,32 @@ class HumanVoiceTTS:
     def stop(self):
         """Stop current speech immediately"""
         self.is_speaking = False
-        # Kill any running audio processes
+        # Kill any running audio processes - be aggressive
         try:
             import subprocess
-            subprocess.run(['pkill', '-f', 'mpv'], capture_output=True, timeout=1)
-            subprocess.run(['pkill', '-f', 'ffplay'], capture_output=True, timeout=1)
+            import platform
+            system = platform.system()
+            
+            if system == "Windows":
+                # Kill audio players on Windows
+                subprocess.run(['taskkill', '/f', '/im', 'mpv.exe'], capture_output=True, timeout=1)
+                subprocess.run(['taskkill', '/f', '/im', 'ffplay.exe'], capture_output=True, timeout=1)
+                # Stop pygame if playing
+                try:
+                    import pygame
+                    if pygame.mixer.get_init():
+                        pygame.mixer.music.stop()
+                except:
+                    pass
+            else:
+                # Linux/Mac
+                subprocess.run(['pkill', '-9', '-f', 'mpv'], capture_output=True, timeout=1)
+                subprocess.run(['pkill', '-9', '-f', 'ffplay'], capture_output=True, timeout=1)
+                subprocess.run(['pkill', '-9', '-f', 'pw-play'], capture_output=True, timeout=1)
+                subprocess.run(['pkill', '-9', '-f', 'paplay'], capture_output=True, timeout=1)
         except:
             pass
+        
         if self.pyttsx3_engine:
             try:
                 self.pyttsx3_engine.stop()

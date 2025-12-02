@@ -372,21 +372,14 @@ class ModernGUI:
         words = text.split()
         current_text = ""
         
-        # Edge TTS speaks at ~150-160 WPM naturally
         word_count = len(words)
         if word_count == 0:
             return
         
-        # Calculate timing based on text length
-        # Edge TTS generation time scales with text length
-        # Short text: ~500ms generation, Long text: ~1000ms+ generation
-        base_generation_delay = 800  # Base delay for audio generation
-        length_factor = min(word_count * 20, 700)  # Additional delay for longer text
-        initial_delay = base_generation_delay + length_factor
-        
-        # Edge TTS speaks at ~3.2-3.5 words/second = ~300ms per word
-        # Slightly slower to ensure text stays behind speech
-        ms_per_word = 310
+        # Minimal delay - audio starts almost immediately now
+        # Edge TTS plays at 1x speed, ~3 words/second = ~330ms per word
+        initial_delay = 150  # Small delay for audio to start
+        ms_per_word = 330  # Match natural speech pace
         
         def show_word(index):
             nonlocal current_text
@@ -409,7 +402,7 @@ class ModernGUI:
                     return
                 self.root.after(ms_per_word, lambda: show_word(index + 1))
         
-        # Start typing AFTER delay to let audio begin
+        # Start typing with minimal delay
         self.root.after(initial_delay, lambda: show_word(0))
     
     def _on_text_submit(self, event=None):
