@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 
 
 class LoadingScreen:
-    """Loading screen that shows while app initializes"""
+    """Loading screen with smooth animations"""
     
-    BG = "#000000"
+    BG = "#0a0a0f"
     PRIMARY = "#00aaff"
     SECONDARY = "#0077bb"
     ACCENT = "#00ffff"
@@ -49,6 +49,7 @@ class LoadingScreen:
         self.progress = 0.0
         self.ready = False
         self.status_queue = Queue()
+        self.fade_alpha = 0.0  # For smooth fade-in
         
     def create(self):
         """Create the loading window"""
@@ -89,6 +90,12 @@ class LoadingScreen:
         self.canvas = tk.Canvas(self.root, width=w, height=h, bg=self.BG, highlightthickness=0)
         self.canvas.pack()
         
+        # Start with transparent window for fade-in effect
+        try:
+            self.root.attributes('-alpha', 0.0)
+        except:
+            pass
+        
         self.t0 = time.time()
         self._render()
         
@@ -122,7 +129,7 @@ class LoadingScreen:
             pass
     
     def _render(self):
-        """Render frame"""
+        """Render frame with smooth animations"""
         if not self.active:
             return
             
@@ -131,7 +138,15 @@ class LoadingScreen:
             
             elapsed = time.time() - self.t0
             
-            # If ready and minimum time passed, close
+            # Smooth fade-in effect (0.5 seconds)
+            if self.fade_alpha < 1.0:
+                self.fade_alpha = min(1.0, elapsed / 0.5)
+                try:
+                    self.root.attributes('-alpha', self.fade_alpha)
+                except:
+                    pass
+            
+            # If ready, fade out then close
             if self.ready and elapsed > 2.0:
                 self.close()
                 return
@@ -141,35 +156,43 @@ class LoadingScreen:
             w, h = 650, 420
             cx, cy = w // 2, h // 2 - 40
             
-            # Background scan lines
-            for i in range(0, h, 4):
-                alpha = 8 + int(math.sin(i * 0.1 + elapsed * 2) * 4)
-                self.canvas.create_line(0, i, w, i, fill=f"#{alpha:02x}{alpha:02x}{alpha + 5:02x}")
+            # Smooth gradient background
+            for i in range(0, h, 2):
+                intensity = int(10 + 5 * math.sin(i * 0.05 + elapsed))
+                color = f"#{intensity:02x}{intensity:02x}{intensity + 3:02x}"
+                self.canvas.create_line(0, i, w, i, fill=color)
             
-            # Arc reactor
+            # Draw arc reactor with glow
             self._draw_reactor(cx, cy, elapsed)
             
-            # Title
+            # Title with fade-in
             title_y = cy + 95
             if elapsed > 0.3:
-                # Get AI name
-                try:
-                    from settings import get_ai_name
-                    title_text = get_ai_name()
-                except:
-                    title_text = "F.R.I.D.A.Y."
+                title_alpha = min(1.0, (elapsed - 0.3) / 0.5)
+                title_text = "F.R.I.D.A.Y."
                 
+                # Glow effect
+                glow_color = f"#00{int(100 * title_alpha):02x}{int(150 * title_alpha):02x}"
+                self.canvas.create_text(cx, title_y, text=title_text,
+                    font=("Segoe UI", 38, "bold"), fill=glow_color)
                 self.canvas.create_text(cx, title_y, text=title_text,
                     font=("Segoe UI", 38, "bold"), fill=self.PRIMARY)
+            
+            # Subtitle
+            if elapsed > 0.6:
+                sub_alpha = min(1.0, (elapsed - 0.6) / 0.5)
+                sub_color = f"#{int(50 * sub_alpha):02x}{int(100 * sub_alpha):02x}{int(130 * sub_alpha):02x}"
+                self.canvas.create_text(cx, title_y + 45, text="AI Voice Assistant",
+                    font=("Segoe UI", 14), fill=sub_color)
             
             # Status panel
             self._draw_status(w, h)
             
-            # Corner frame
+            # Corner accents
             self._draw_frame(w, h)
             
             self.frame += 1
-            self.root.after(25, self._render)
+            self.root.after(16, self._render)  # ~60 FPS for smooth animation
             
         except tk.TclError:
             self.active = False
@@ -178,13 +201,20 @@ class LoadingScreen:
             self.close()
     
     def _draw_reactor(self, cx, cy, elapsed):
-        """Draw arc reactor"""
-        # Rings
+        """Draw arc reactor with smooth glow effect"""
+        # Outer glow
+        for i in range(3):
+            r = 70 + i * 5
+            alpha = 30 - i * 10
+            self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
+                outline=f"#00{alpha:02x}{alpha + 20:02x}", width=1)
+        
+        # Main rings with smooth rotation
         self.canvas.create_oval(cx - 60, cy - 60, cx + 60, cy + 60, outline=self.SECONDARY, width=2)
         self.canvas.create_oval(cx - 45, cy - 45, cx + 45, cy + 45, outline=self.PRIMARY, width=2)
         
-        # Rotating segments
-        angle_offset = elapsed * 60
+        # Rotating segments - smooth
+        angle_offset = elapsed * 45  # Slower rotation
         for i in range(8):
             angle = math.radians(angle_offset + i * 45)
             x1, y1 = cx + 48 * math.cos(angle), cy + 48 * math.sin(angle)
@@ -192,46 +222,55 @@ class LoadingScreen:
             self.canvas.create_line(x1, y1, x2, y2, fill=self.PRIMARY, width=2)
         
         for i in range(6):
-            angle = math.radians(-angle_offset * 0.5 + i * 60)
+            angle = math.radians(-angle_offset * 0.7 + i * 60)
             x1, y1 = cx + 25 * math.cos(angle), cy + 25 * math.sin(angle)
             x2, y2 = cx + 35 * math.cos(angle), cy + 35 * math.sin(angle)
             self.canvas.create_line(x1, y1, x2, y2, fill=self.ACCENT, width=2)
         
-        # Core
-        pulse = 0.8 + 0.2 * math.sin(elapsed * 5)
-        for i in range(3):
-            r = int(18 * pulse) + i * 4
-            alpha = int((80 - i * 25) * pulse)
-            self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
-                fill=f"#{0:02x}{alpha:02x}{alpha + 20:02x}", outline="")
+        # Core with smooth pulse
+        pulse = 0.85 + 0.15 * math.sin(elapsed * 3)  # Slower, subtler pulse
+        for i in range(4):
+            r = int(20 * pulse) - i * 3
+            if r > 0:
+                alpha = int((100 - i * 20) * pulse)
+                self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
+                    fill=f"#00{alpha:02x}{min(255, alpha + 50):02x}", outline="")
         
-        self.canvas.create_oval(cx - 8, cy - 8, cx + 8, cy + 8, fill=self.ACCENT, outline="")
+        self.canvas.create_oval(cx - 6, cy - 6, cx + 6, cy + 6, fill=self.ACCENT, outline="")
     
     def _draw_status(self, w, h):
-        """Draw status panel"""
+        """Draw status panel with smooth styling"""
         panel_y = h - 85
         panel_w = 400
         px = (w - panel_w) // 2
         
         # Status text
         self.canvas.create_text(w // 2, panel_y, text=self.status_text,
-            font=("Consolas", 11), fill=self.TEXT)
+            font=("Segoe UI", 11), fill=self.TEXT)
         
-        # Progress bar
+        # Progress bar background with rounded ends
         bar_y = panel_y + 25
-        self.canvas.create_rectangle(px, bar_y, px + panel_w, bar_y + 3, fill=self.DIM, outline="")
+        bar_h = 4
+        self.canvas.create_rectangle(px, bar_y, px + panel_w, bar_y + bar_h, 
+            fill=self.DIM, outline="")
         
+        # Progress fill with glow
         fill_w = int(panel_w * self.progress)
         if fill_w > 0:
-            self.canvas.create_rectangle(px, bar_y, px + fill_w, bar_y + 3, fill=self.PRIMARY, outline="")
+            # Glow
+            self.canvas.create_rectangle(px, bar_y - 1, px + fill_w, bar_y + bar_h + 1,
+                fill="#003355", outline="")
+            # Main bar
+            self.canvas.create_rectangle(px, bar_y, px + fill_w, bar_y + bar_h,
+                fill=self.PRIMARY, outline="")
         
         # Percentage
-        self.canvas.create_text(px + panel_w + 35, bar_y + 1, text=f"{int(self.progress * 100)}%",
-            font=("Consolas", 10), fill=self.PRIMARY)
+        self.canvas.create_text(px + panel_w + 35, bar_y + 2, text=f"{int(self.progress * 100)}%",
+            font=("Segoe UI", 10), fill=self.PRIMARY)
         
-        # Bottom text
-        self.canvas.create_text(w // 2, h - 30, text="STARK INDUSTRIES • INITIALIZING",
-            font=("Consolas", 8), fill=self.DIM)
+        # Bottom branding
+        self.canvas.create_text(w // 2, h - 25, text="F.R.I.D.A.Y. • AI ASSISTANT",
+            font=("Segoe UI", 9), fill=self.DIM)
     
     def _draw_frame(self, w, h):
         """Draw rounded corner accents"""

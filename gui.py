@@ -64,7 +64,7 @@ class ModernGUI:
             self._setup_basic_gui()
     
     def _setup_modern_gui(self):
-        """Setup modern GUI with CustomTkinter"""
+        """Setup modern GUI with smooth aesthetics"""
         ctk.set_appearance_mode("dark" if GUI_THEME == "dark" else "light")
         ctk.set_default_color_theme("blue")
         
@@ -72,6 +72,13 @@ class ModernGUI:
         self.root.title(get_text("app_title", self.lang))
         self.root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.root.minsize(600, 400)
+        
+        # Smooth window appearance
+        try:
+            self.root.attributes('-alpha', 0.0)
+            self.root.after(50, lambda: self._fade_in_window())
+        except:
+            pass
         
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_rowconfigure(1, weight=1)
@@ -81,6 +88,16 @@ class ModernGUI:
         self._create_input_area()
         self._create_status_bar()
         self._process_queue()
+    
+    def _fade_in_window(self, alpha=0.0):
+        """Smooth fade-in effect for window"""
+        if alpha < 1.0:
+            alpha += 0.1
+            try:
+                self.root.attributes('-alpha', alpha)
+                self.root.after(20, lambda: self._fade_in_window(alpha))
+            except:
+                pass
     
     def _create_header(self):
         """Create header section"""
