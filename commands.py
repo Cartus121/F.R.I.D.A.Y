@@ -92,7 +92,7 @@ If it's just conversation or you're unsure, use:
 class CommandHandler:
     """
     AI-Powered Command Handler
-    Uses GPT to analyze sentences and determine intent
+    Uses AI (Gemini or GPT) to analyze sentences and determine intent
     NO keyword matching - full natural language understanding
     """
     
@@ -100,30 +100,52 @@ class CommandHandler:
         self.gui_callback = None
         self.system = platform.system()
         self.openai_client = None
+        self.gemini_model = None
+        self.ai_provider = None  # "gemini", "openai", or None
         
-        # Initialize OpenAI for intent detection
-        self._init_openai()
+        # Initialize AI for intent detection - PREFER GEMINI (FREE)
+        self._init_ai()
     
-    def _init_openai(self):
-        """Initialize or reinitialize OpenAI client"""
-        if self.openai_client:
-            return  # Already initialized
-        
-        # Try getting API key - check env first, then settings
-        api_key = os.environ.get("OPENAI_API_KEY", "")
-        if not api_key:
+    def _init_ai(self):
+        """Initialize AI client - prefer Gemini (free) over OpenAI"""
+        # Try Gemini first (FREE!)
+        if not self.gemini_model:
             try:
-                from settings import get_api_key
-                api_key = get_api_key("OPENAI_API_KEY")
-            except:
-                pass
-        
-        if OPENAI_AVAILABLE and api_key:
-            try:
-                self.openai_client = OpenAI(api_key=api_key)
-                print("[OK] AI Intent Analyzer ready")
+                import google.generativeai as genai
+                gemini_key = os.environ.get("GOOGLE_API_KEY", "")
+                if not gemini_key:
+                    try:
+                        from settings import get_api_key
+                        gemini_key = get_api_key("GOOGLE_API_KEY")
+                    except:
+                        pass
+                
+                if gemini_key:
+                    genai.configure(api_key=gemini_key)
+                    self.gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                    self.ai_provider = "gemini"
+                    print("[OK] AI Intent Analyzer ready (Gemini 2.0 Flash - FREE)")
+                    return
             except Exception as e:
-                print(f"[!] AI Intent Analyzer error: {e}")
+                print(f"[!] Gemini init error: {e}")
+        
+        # Fallback to OpenAI
+        if not self.openai_client:
+            api_key = os.environ.get("OPENAI_API_KEY", "")
+            if not api_key:
+                try:
+                    from settings import get_api_key
+                    api_key = get_api_key("OPENAI_API_KEY")
+                except:
+                    pass
+            
+            if OPENAI_AVAILABLE and api_key:
+                try:
+                    self.openai_client = OpenAI(api_key=api_key)
+                    self.ai_provider = "openai"
+                    print("[OK] AI Intent Analyzer ready (OpenAI)")
+                except Exception as e:
+                    print(f"[!] OpenAI init error: {e}")
     
     def set_gui_callback(self, callback):
         """Set callback for sending async messages to GUI"""
@@ -134,9 +156,9 @@ class CommandHandler:
         Process user input using AI to understand intent
         Returns: (response_text, should_continue_listening)
         """
-        # Ensure OpenAI is initialized (in case key was added after startup)
-        if not self.openai_client:
-            self._init_openai()
+        # Ensure AI is initialized
+        if not self.ai_provider:
+            self._init_ai()
         
         command = command.strip()
         
@@ -204,14 +226,56 @@ class CommandHandler:
     def _get_smart_response(self, command: str) -> str:
         """
         Single optimized AI call that handles both actions AND conversation.
-        SPEED OPTIMIZED: Uses gpt-4o with minimal tokens for fastest response.
+        Uses Gemini (FREE) or OpenAI as fallback.
         """
-        if not self.openai_client:
-            # Fallback to brain if no OpenAI in commands
-            return brain.get_response(command)
+        # Use Gemini if available (FREE!)
+        if self.ai_provider == "gemini" and self.gemini_model:
+            return self._get_gemini_smart_response(command)
         
+        # Use OpenAI if available
+        if self.ai_provider == "openai" and self.openai_client:
+            return self._get_openai_smart_response(command)
+        
+        # Fallback to brain
+        return brain.get_response(command)
+    
+    def _get_gemini_smart_response(self, command: str) -> str:
+        """Get smart response from Gemini 2.0 Flash (FREE)"""
         try:
-            # Compact prompt for speed
+            prompt = f"""You are F.R.I.D.A.Y., an AI assistant. Be witty and concise.
+Time: {datetime.now().strftime('%I:%M %p')}, OS: {self.system}
+
+If user wants an ACTION, reply with JSON only: {{"action": "X", "params": {{}}}}
+Actions: open_app, open_website, search_web, set_volume, set_brightness, set_timer, set_alarm, media_control, smart_lights
+
+If it's a QUESTION or conversation, reply naturally (no JSON). Max 2-3 sentences.
+
+User: {command}
+Response:"""
+
+            response = self.gemini_model.generate_content(
+                prompt,
+                generation_config={
+                    "max_output_tokens": 200,
+                    "temperature": 0.7,
+                }
+            )
+            
+            result = response.text.strip()
+            return self._process_ai_result(result, command)
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            print(f"[Gemini] Error: {e}")
+            
+            if "quota" in error_str or "limit" in error_str:
+                return "⚠️ Gemini quota reached. Try again later or add an OpenAI key."
+            
+            return brain.get_response(command)
+    
+    def _get_openai_smart_response(self, command: str) -> str:
+        """Get smart response from OpenAI"""
+        try:
             system_prompt = f"""F.R.I.D.A.Y. AI assistant. Be witty, concise. Time: {datetime.now().strftime('%I:%M %p')}, OS: {self.system}
 
 ACTION? Reply JSON: {{"action": "X", "params": {{}}}}
@@ -225,49 +289,48 @@ QUESTION? Reply naturally. Max 2-3 sentences."""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": command}
                 ],
-                max_tokens=200,  # Reduced for speed
+                max_tokens=200,
                 temperature=0.7
             )
             
             result = response.choices[0].message.content.strip()
-            
-            # Check if it's an action JSON
-            if result.startswith("{") and "action" in result:
-                try:
-                    # Clean markdown if present
-                    clean_result = result
-                    if "```" in result:
-                        clean_result = re.sub(r'```json?\s*', '', result)
-                        clean_result = re.sub(r'\s*```', '', clean_result)
-                    
-                    action_data = json.loads(clean_result)
-                    action = action_data.get("action", "")
-                    params = action_data.get("params", {})
-                    
-                    # Execute action
-                    action_response = self._execute_action_fast(action, params, command)
-                    if action_response:
-                        return action_response
-                except json.JSONDecodeError:
-                    pass  # Not valid JSON, treat as conversation
-            
-            # It's a conversation response
-            return result
+            return self._process_ai_result(result, command)
             
         except Exception as e:
             error_str = str(e).lower()
-            print(f"[SmartResponse] Error: {e}")
+            print(f"[OpenAI] Error: {e}")
             
-            # Provide helpful error messages for common issues
             if "429" in str(e) or "rate" in error_str or "quota" in error_str:
-                return "⚠️ OpenAI rate limit reached. Your account may be out of credits. Check platform.openai.com/usage"
-            elif "401" in str(e) or "invalid" in error_str or "auth" in error_str:
-                return "⚠️ Invalid API key. Please check your OpenAI API key in settings."
-            elif "timeout" in error_str or "connection" in error_str:
-                return "⚠️ Connection issue. Please check your internet connection."
+                return "⚠️ OpenAI rate limit. Account may be out of credits."
+            elif "401" in str(e) or "invalid" in error_str:
+                return "⚠️ Invalid API key. Check settings."
             
-            # Fallback to brain
             return brain.get_response(command)
+    
+    def _process_ai_result(self, result: str, command: str) -> str:
+        """Process AI result - check for action JSON or return as conversation"""
+        # Check if it's an action JSON
+        if result.startswith("{") and "action" in result:
+            try:
+                # Clean markdown if present
+                clean_result = result
+                if "```" in result:
+                    clean_result = re.sub(r'```json?\s*', '', result)
+                    clean_result = re.sub(r'\s*```', '', clean_result)
+                
+                action_data = json.loads(clean_result)
+                action = action_data.get("action", "")
+                params = action_data.get("params", {})
+                
+                # Execute action
+                action_response = self._execute_action_fast(action, params, command)
+                if action_response:
+                    return action_response
+            except json.JSONDecodeError:
+                pass  # Not valid JSON, treat as conversation
+        
+        # It's a conversation response
+        return result
     
     def _execute_action_fast(self, action: str, params: Dict, original: str) -> Optional[str]:
         """Execute detected action quickly"""

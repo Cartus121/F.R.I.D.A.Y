@@ -64,15 +64,37 @@ except ImportError:
 except Exception as e:
     print(f"[!] OpenAI error: {e}")
 
+gemini_model = None
+
+def _get_gemini_api_key():
+    """Get Gemini API key from config or settings"""
+    if GOOGLE_API_KEY and GOOGLE_API_KEY.strip():
+        return GOOGLE_API_KEY
+    env_key = os.environ.get("GOOGLE_API_KEY", "")
+    if env_key and env_key.strip():
+        return env_key
+    try:
+        from settings import get_api_key
+        key = get_api_key("GOOGLE_API_KEY")
+        if key and key.strip():
+            return key
+    except:
+        pass
+    return ""
+
 try:
     import google.generativeai as genai
-    if GOOGLE_API_KEY and GOOGLE_API_KEY.strip() != "":
-        genai.configure(api_key=GOOGLE_API_KEY)
-        gemini_model = genai.GenerativeModel('gemini-pro')
+    gemini_key = _get_gemini_api_key()
+    if gemini_key:
+        genai.configure(api_key=gemini_key)
+        # Use Gemini 2.0 Flash - FREE, fast, and powerful!
+        gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
         GEMINI_AVAILABLE = True
-        print("[OK] Gemini connected")
+        print("[OK] Gemini 2.0 Flash connected (FREE)")
+    else:
+        print("[!] Gemini API key not found - get FREE key at ai.google.dev")
 except ImportError:
-    pass
+    print("[!] Gemini library missing - pip install google-generativeai")
 except Exception as e:
     print(f"[!] Gemini error: {e}")
 
@@ -98,14 +120,14 @@ class AIBrain:
         
         self._load_persistent_memory()
         
-        # Determine which AI to use
-        if OPENAI_AVAILABLE:
+        # Determine which AI to use - PREFER GEMINI (FREE!)
+        if GEMINI_AVAILABLE:
+            self.ai_provider = "gemini"
+            print("Using Google Gemini 2.0 Flash (FREE)")
+        elif OPENAI_AVAILABLE:
             self.ai_provider = "openai"
             self.openai_client = openai_client
             print("Using OpenAI for AI responses")
-        elif GEMINI_AVAILABLE:
-            self.ai_provider = "gemini"
-            print("Using Google Gemini for AI responses")
         else:
             self.ai_provider = "local"
             print("Using local responses (no AI API configured)")
@@ -613,31 +635,45 @@ User: {name} | Time: {datetime.now().strftime('%I:%M %p')}
 Be concise (1-3 sentences). Handle coding, math, science, general knowledge."""
     
     def _get_gemini_response(self, user_input: str) -> str:
-        """Get response from Google Gemini with memory"""
-        dynamic_prompt = self._build_dynamic_prompt()
-        prompt_parts = [dynamic_prompt, "\n\nConversation:"]
+        """Get response from Google Gemini 2.0 Flash - FAST and FREE"""
+        # Build a simple, fast prompt
+        name = self.user_name or "User"
+        system_prompt = f"""You are F.R.I.D.A.Y., an AI assistant like from Iron Man. Be witty, helpful, and concise.
+User's name: {name}
+Current time: {datetime.now().strftime('%I:%M %p')}
+Be concise (1-3 sentences usually). You can handle coding, math, science, general knowledge."""
+
+        # Build conversation with minimal history
+        conversation = [system_prompt, "\nConversation:"]
         
-        past_convos = db.get_recent_conversations(limit=5)
-        for conv in reversed(past_convos):
-            prompt_parts.append(f"User: {conv['user_message']}")
-            prompt_parts.append(f"Assistant: {conv['assistant_response']}")
+        for exchange in self.session_history[-2:]:
+            conversation.append(f"User: {exchange['user']}")
+            conversation.append(f"F.R.I.D.A.Y.: {exchange['assistant']}")
         
-        for exchange in self.session_history[-self.max_session_history:]:
-            prompt_parts.append(f"User: {exchange['user']}")
-            prompt_parts.append(f"Assistant: {exchange['assistant']}")
+        conversation.append(f"User: {user_input}")
+        conversation.append("F.R.I.D.A.Y.:")
         
-        prompt_parts.append(f"User: {user_input}")
-        prompt_parts.append("Assistant:")
+        full_prompt = "\n".join(conversation)
         
-        full_prompt = "\n".join(prompt_parts)
+        response = gemini_model.generate_content(
+            full_prompt,
+            generation_config={
+                "max_output_tokens": 200,
+                "temperature": 0.7,
+            }
+        )
         
-        response = gemini_model.generate_content(full_prompt)
-        assistant_response = response.text
+        assistant_response = response.text.strip()
         
+        # Store for context
         self.session_history.append({
             "user": user_input,
             "assistant": assistant_response
         })
+        
+        # Keep history small
+        if len(self.session_history) > 10:
+            self.session_history = self.session_history[-5:]
         
         return assistant_response
     
