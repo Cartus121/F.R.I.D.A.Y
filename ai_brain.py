@@ -544,7 +544,17 @@ Only include fields where you found actual data. Respond with JSON only."""
             return final_response
             
         except Exception as e:
+            error_str = str(e).lower()
             print(f"AI error: {e}")
+            
+            # Provide helpful error messages
+            if "429" in str(e) or "rate" in error_str or "quota" in error_str:
+                return "⚠️ OpenAI rate limit reached. Your account may be out of credits. Check your usage at platform.openai.com/usage"
+            elif "401" in str(e) or "invalid" in error_str or "auth" in error_str:
+                return "⚠️ Invalid API key. Please check your OpenAI API key in settings."
+            elif "timeout" in error_str or "connection" in error_str:
+                return "⚠️ Connection issue. Please check your internet connection."
+            
             return self._get_local_response(user_input)
     
     def _background_learn(self, user_input: str, response: str):

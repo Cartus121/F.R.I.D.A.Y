@@ -255,7 +255,17 @@ QUESTION? Reply naturally. Max 2-3 sentences."""
             return result
             
         except Exception as e:
+            error_str = str(e).lower()
             print(f"[SmartResponse] Error: {e}")
+            
+            # Provide helpful error messages for common issues
+            if "429" in str(e) or "rate" in error_str or "quota" in error_str:
+                return "⚠️ OpenAI rate limit reached. Your account may be out of credits. Check platform.openai.com/usage"
+            elif "401" in str(e) or "invalid" in error_str or "auth" in error_str:
+                return "⚠️ Invalid API key. Please check your OpenAI API key in settings."
+            elif "timeout" in error_str or "connection" in error_str:
+                return "⚠️ Connection issue. Please check your internet connection."
+            
             # Fallback to brain
             return brain.get_response(command)
     
