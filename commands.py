@@ -84,7 +84,7 @@ class CommandHandler:
         
     def process(self, command: str) -> Tuple[str, bool]:
         """
-        Process a voice command using AI to understand intent
+        Process a voice command - detect intent and EXECUTE actions
         Returns: (response_text, should_continue_listening)
         """
         original_command = command.lower().strip()
@@ -102,31 +102,197 @@ class CommandHandler:
         if original_command.strip() in goodbye_phrases:
             return (f"Standing by. Say '{WAKE_WORD}' when you need me.", False)
         
-        # Only sleep on standalone "thanks" - not mixed with other words
+        # Only sleep on standalone "thanks"
         if original_command.strip() in ["thank you", "thanks", "спасибо"]:
             return ("Of course. I'll be here.", False)
         
-        # === Use AI to determine intent and handle the request ===
-        # Let the AI brain figure out what the user wants
+        # === DETECT INTENT AND EXECUTE ACTIONS ===
+        
+        # Check for OPEN intent (apps, folders, websites)
+        open_words = ["open", "launch", "start", "run", "show me", "go to"]
+        if any(word in cleaned_command for word in open_words):
+            return self._handle_open(cleaned_command), True
+        
+        # Check for SEARCH intent
+        search_words = ["search", "look up", "find", "google", "youtube"]
+        if any(word in cleaned_command for word in search_words):
+            return self._handle_search(cleaned_command), True
+        
+        # Check for SYSTEM STATUS intent
+        status_words = ["status", "how we looking", "how are we", "cpu", "ram", "memory", 
+                       "pc", "computer", "diagnostics", "health", "temps"]
+        if any(word in cleaned_command for word in status_words):
+            return self._get_system_status(), True
+        
+        # Check for WEATHER intent
+        weather_words = ["weather", "outside", "temperature", "rain", "forecast"]
+        if any(word in cleaned_command for word in weather_words) and "cpu" not in cleaned_command:
+            return self._get_weather(), True
+        
+        # Check for TIME intent
+        if any(word in cleaned_command for word in ["time", "what time", "clock"]):
+            return self._get_time(), True
+        
+        # Check for DATE intent
+        if any(word in cleaned_command for word in ["date", "what day", "today"]):
+            return self._get_date(), True
+        
+        # === For everything else, ask the AI ===
         response = brain.get_response(cleaned_command, context={
             "current_time": datetime.now().strftime(TIME_FORMAT),
             "current_date": datetime.now().strftime(DATE_FORMAT),
-            "location": LOCATION,
-            "available_actions": "open apps, search web, check system status, set timers, weather, calendar, notes, reminders"
+            "location": LOCATION
         })
         
-        # Check if AI wants us to perform an action
-        response_lower = response.lower()
-        
-        # If AI indicates it needs system info, get it
-        if any(word in response_lower for word in ["checking system", "let me check", "checking cpu", "checking diagnostics"]):
-            return self._get_system_status(), True
-        
-        # If AI indicates weather request
-        if "checking weather" in response_lower or "let me get the weather" in response_lower:
-            return self._get_weather(), True
-        
         return response, True
+    
+    def _handle_open(self, command: str) -> str:
+        """Handle opening apps, folders, websites"""
+        import platform
+        import os
+        system = platform.system()
+        
+        # Clean the command to get what to open
+        for word in ["open", "launch", "start", "run", "show me", "go to", "the", "my", "please"]:
+            command = command.replace(word, "")
+        target = command.strip()
+        
+        if not target:
+            return "What should I open?"
+        
+        # Log the action
+        if self.gui_callback:
+            self.gui_callback(f"[Opening: {target}]")
+        
+        if system == "Windows":
+            # Windows apps and folders
+            win_commands = {
+                # Apps
+                "microsoft store": "start ms-windows-store:",
+                "store": "start ms-windows-store:",
+                "settings": "start ms-settings:",
+                "calculator": "calc",
+                "calc": "calc",
+                "notepad": "notepad",
+                "paint": "mspaint",
+                "task manager": "taskmgr",
+                "control panel": "control",
+                "cmd": "cmd",
+                "terminal": "cmd",
+                "command prompt": "cmd",
+                "powershell": "powershell",
+                "file explorer": "explorer",
+                "explorer": "explorer",
+                "files": "explorer",
+                
+                # Browsers
+                "chrome": "start chrome",
+                "google chrome": "start chrome",
+                "firefox": "start firefox",
+                "edge": "start msedge",
+                "microsoft edge": "start msedge",
+                "brave": "start brave",
+                "browser": "start chrome",
+                
+                # Folders
+                "downloads": "explorer shell:Downloads",
+                "download": "explorer shell:Downloads",
+                "documents": "explorer shell:Personal",
+                "document": "explorer shell:Personal",
+                "pictures": "explorer shell:My Pictures",
+                "photos": "explorer shell:My Pictures",
+                "music": "explorer shell:My Music",
+                "videos": "explorer shell:My Video",
+                "desktop": "explorer shell:Desktop",
+                
+                # Office
+                "word": "start winword",
+                "excel": "start excel",
+                "powerpoint": "start powerpnt",
+                "outlook": "start outlook",
+                
+                # Apps
+                "spotify": "start spotify:",
+                "discord": "start discord:",
+                "steam": "start steam:",
+                "teams": "start msteams:",
+                "slack": "start slack:",
+                "zoom": "start zoom",
+                "code": "code",
+                "vs code": "code",
+                "vscode": "code",
+                "visual studio code": "code",
+            }
+            
+            # Find matching command
+            cmd = None
+            for key, value in win_commands.items():
+                if key in target:
+                    cmd = value
+                    break
+            
+            if not cmd:
+                # Try to open as generic app
+                cmd = f"start {target}"
+            
+            try:
+                subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return f"Opening {target}."
+            except Exception as e:
+                return f"Couldn't open {target}."
+        else:
+            # Linux
+            linux_commands = {
+                "files": "xdg-open .",
+                "file manager": "xdg-open .",
+                "downloads": "xdg-open ~/Downloads",
+                "documents": "xdg-open ~/Documents",
+                "pictures": "xdg-open ~/Pictures",
+                "music": "xdg-open ~/Music",
+                "videos": "xdg-open ~/Videos",
+                "terminal": "gnome-terminal",
+                "calculator": "gnome-calculator",
+                "settings": "gnome-control-center",
+                "firefox": "firefox",
+                "chrome": "google-chrome",
+                "code": "code",
+                "spotify": "spotify",
+                "discord": "discord",
+            }
+            
+            cmd = linux_commands.get(target, target)
+            try:
+                subprocess.Popen(cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return f"Opening {target}."
+            except:
+                try:
+                    subprocess.Popen(["xdg-open", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    return f"Opening {target}."
+                except:
+                    return f"Couldn't open {target}."
+    
+    def _handle_search(self, command: str) -> str:
+        """Handle web searches"""
+        # Clean the command
+        for word in ["search", "search for", "look up", "find", "google", "on youtube", "youtube"]:
+            command = command.replace(word, "")
+        query = command.strip()
+        
+        if not query:
+            return "What should I search for?"
+        
+        # Check if YouTube search
+        if "youtube" in command.lower() or "video" in command.lower():
+            url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
+        else:
+            url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        
+        # Log the action
+        if self.gui_callback:
+            self.gui_callback(f"[Searching: {query}]")
+        
+        webbrowser.open(url)
+        return f"Searching for {query}."
     
     # ==================== TIME & DATE ====================
     

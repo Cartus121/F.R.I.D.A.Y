@@ -480,6 +480,7 @@ def main():
             
             if command == "__WAKE__":
                 gui.set_awake(True)
+                gui.set_action("Listening...", "👂")
                 response = "Yes? What do you need?"
                 if tts:
                     tts.speak(response)
@@ -488,22 +489,27 @@ def main():
             
             gui.add_user_message(command)
             gui.set_status("Processing...")
+            gui.set_action(f"Processing: {command[:30]}...", "⚡")
             
             response, should_continue = command_handler.process(command)
             gui.add_assistant_message(response)
             gui.set_status("Online")
+            gui.set_action("Standing by...", "💤")
             
             if tts:
                 tts.speak(response)
             
             if not should_continue:
                 gui.set_awake(False)
+                gui.set_action("Sleeping...", "😴")
                 if recognizer:
                     recognizer.sleep()
         
         def process_text_command(command: str) -> str:
             """Process text command"""
+            gui.set_action(f"Processing: {command[:30]}...", "⚡")
             response, _ = command_handler.process(command)
+            gui.set_action("Standing by...", "💤")
             # Speak in background so text can display simultaneously
             if tts:
                 threading.Thread(target=tts.speak, args=(response,), daemon=True).start()

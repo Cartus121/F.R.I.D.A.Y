@@ -71,7 +71,7 @@ class ModernGUI:
         self.root = ctk.CTk()
         self.root.title(get_text("app_title", self.lang))
         self.root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
-        self.root.minsize(600, 400)
+        self.root.minsize(600, 450)
         
         # Smooth window appearance
         try:
@@ -81,9 +81,10 @@ class ModernGUI:
             pass
         
         self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(1, weight=1)
+        self.root.grid_rowconfigure(2, weight=1)  # Chat area expands
         
         self._create_header()
+        self._create_status_panel()  # New status panel
         self._create_chat_area()
         self._create_input_area()
         self._create_status_bar()
@@ -101,7 +102,7 @@ class ModernGUI:
     
     def _create_header(self):
         """Create header section"""
-        header_frame = ctk.CTkFrame(self.root, height=80, corner_radius=0)
+        header_frame = ctk.CTkFrame(self.root, height=60, corner_radius=0)
         header_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
         header_frame.grid_columnconfigure(1, weight=1)
         
@@ -115,38 +116,94 @@ class ModernGUI:
         title_label = ctk.CTkLabel(
             header_frame,
             text=app_name,
-            font=ctk.CTkFont(size=28, weight="bold")
+            font=ctk.CTkFont(size=24, weight="bold")
         )
-        title_label.grid(row=0, column=0, padx=20, pady=20)
+        title_label.grid(row=0, column=0, padx=15, pady=10)
         
         subtitle_label = ctk.CTkLabel(
             header_frame,
-            text=get_text("subtitle", self.lang),
-            font=ctk.CTkFont(size=14),
+            text="Female Replacement Intelligent Digital Assistant Youth",
+            font=ctk.CTkFont(size=11),
             text_color="gray"
         )
-        subtitle_label.grid(row=0, column=1, padx=10, pady=20, sticky="w")
+        subtitle_label.grid(row=0, column=1, padx=5, pady=10, sticky="w")
         
         # Settings button
         settings_btn = ctk.CTkButton(
             header_frame,
             text="⚙️",
-            width=40,
-            height=40,
-            font=ctk.CTkFont(size=18),
+            width=35,
+            height=35,
+            font=ctk.CTkFont(size=16),
             command=self._open_settings,
             fg_color="transparent",
             hover_color=("gray80", "gray30")
         )
-        settings_btn.grid(row=0, column=2, padx=5, pady=20)
+        settings_btn.grid(row=0, column=2, padx=5, pady=10)
         
         self.status_indicator = ctk.CTkLabel(
             header_frame,
             text=get_text("sleeping", self.lang),
-            font=ctk.CTkFont(size=14),
+            font=ctk.CTkFont(size=12),
             text_color="gray"
         )
-        self.status_indicator.grid(row=0, column=3, padx=20, pady=20)
+        self.status_indicator.grid(row=0, column=3, padx=15, pady=10)
+    
+    def _create_status_panel(self):
+        """Create small status panel showing what F.R.I.D.A.Y. is doing"""
+        status_panel = ctk.CTkFrame(self.root, height=50, corner_radius=8, fg_color=("gray90", "gray17"))
+        status_panel.grid(row=1, column=0, sticky="ew", padx=15, pady=(5, 5))
+        status_panel.grid_columnconfigure(1, weight=1)
+        
+        # Status icon
+        self.action_icon = ctk.CTkLabel(
+            status_panel,
+            text="💤",
+            font=ctk.CTkFont(size=16)
+        )
+        self.action_icon.grid(row=0, column=0, padx=10, pady=8)
+        
+        # Action text
+        self.action_label = ctk.CTkLabel(
+            status_panel,
+            text="Standing by...",
+            font=ctk.CTkFont(size=12, family="Consolas"),
+            text_color=("gray40", "gray60"),
+            anchor="w"
+        )
+        self.action_label.grid(row=0, column=1, padx=5, pady=8, sticky="w")
+        
+        # System stats (small)
+        self.stats_label = ctk.CTkLabel(
+            status_panel,
+            text="CPU: --% | RAM: --%",
+            font=ctk.CTkFont(size=10),
+            text_color=("gray50", "gray50")
+        )
+        self.stats_label.grid(row=0, column=2, padx=10, pady=8)
+        
+        # Start updating stats
+        self._update_stats()
+    
+    def _update_stats(self):
+        """Update system stats in status panel"""
+        try:
+            import psutil
+            cpu = psutil.cpu_percent(interval=0)
+            mem = psutil.virtual_memory().percent
+            self.stats_label.configure(text=f"CPU: {cpu:.0f}% | RAM: {mem:.0f}%")
+        except:
+            pass
+        # Update every 3 seconds
+        self.root.after(3000, self._update_stats)
+    
+    def set_action(self, action: str, icon: str = "⚡"):
+        """Set the current action in status panel"""
+        try:
+            self.action_icon.configure(text=icon)
+            self.action_label.configure(text=action)
+        except:
+            pass
     
     def _create_chat_area(self):
         """Create scrollable chat area"""
@@ -155,7 +212,7 @@ class ModernGUI:
             corner_radius=10,
             fg_color=("gray95", "gray10")
         )
-        self.chat_frame.grid(row=1, column=0, sticky="nsew", padx=15, pady=10)
+        self.chat_frame.grid(row=2, column=0, sticky="nsew", padx=15, pady=5)
         self.chat_frame.grid_columnconfigure(0, weight=1)
         
         self._add_message(get_text("welcome", self.lang), is_user=False)
@@ -164,7 +221,7 @@ class ModernGUI:
     def _create_input_area(self):
         """Create input area with text entry and buttons"""
         input_frame = ctk.CTkFrame(self.root, corner_radius=10)
-        input_frame.grid(row=2, column=0, sticky="ew", padx=15, pady=10)
+        input_frame.grid(row=3, column=0, sticky="ew", padx=15, pady=10)
         input_frame.grid_columnconfigure(0, weight=1)
         
         self.text_entry = ctk.CTkEntry(
@@ -203,7 +260,7 @@ class ModernGUI:
     def _create_status_bar(self):
         """Create status bar at bottom"""
         status_frame = ctk.CTkFrame(self.root, height=30, corner_radius=0)
-        status_frame.grid(row=3, column=0, sticky="ew")
+        status_frame.grid(row=4, column=0, sticky="ew")
         
         self.status_label = ctk.CTkLabel(
             status_frame,
