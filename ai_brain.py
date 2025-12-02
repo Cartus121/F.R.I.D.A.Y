@@ -60,16 +60,26 @@ class AIBrain:
     
     def __init__(self):
         self.session_history: List[Dict] = []
-        self.max_session_history = 3  # Minimal for speed
+        self.max_session_history = 5  # Keep more for context
         self.user_name = None
         self.session_start = datetime.now()
         self.interaction_count = 0
+        
+        # Advanced user profiling
+        self.current_mood = "neutral"
+        self.mood_history = []
+        self.communication_style = "casual"
+        self.topics_discussed = []
+        self.user_interests = []
+        self.user_schedule_patterns = {}
+        self.interaction_times = []
         
         self._load_persistent_memory()
         
         # Determine which AI to use
         if OPENAI_AVAILABLE:
             self.ai_provider = "openai"
+            self.openai_client = openai_client
             print("Using OpenAI for AI responses")
         elif GEMINI_AVAILABLE:
             self.ai_provider = "gemini"
@@ -90,6 +100,157 @@ class AIBrain:
         if name_memories:
             self.user_name = name_memories[0]['content']
             print(f"Remembered user: {self.user_name}")
+        
+        # Load user interests
+        interest_memories = db.get_memories(memory_type="interest")
+        self.user_interests = [m['content'] for m in interest_memories]
+        
+        # Load communication style
+        style_memories = db.get_memories(memory_type="communication_style")
+        if style_memories:
+            self.communication_style = style_memories[0]['content']
+    
+    def _analyze_mood(self, user_input: str) -> str:
+        """
+        Analyze user's mood from their message
+        Uses AI to understand emotional context
+        """
+        if not hasattr(self, 'openai_client') or not self.openai_client:
+            return self._simple_mood_detect(user_input)
+        
+        try:
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Analyze the user's mood from their message. Respond with ONE word only: happy, sad, frustrated, anxious, excited, tired, neutral, angry, stressed, curious, playful, or bored."},
+                    {"role": "user", "content": user_input}
+                ],
+                max_tokens=10,
+                temperature=0.1
+            )
+            mood = response.choices[0].message.content.strip().lower()
+            return mood if mood in ["happy", "sad", "frustrated", "anxious", "excited", "tired", "neutral", "angry", "stressed", "curious", "playful", "bored"] else "neutral"
+        except:
+            return self._simple_mood_detect(user_input)
+    
+    def _simple_mood_detect(self, text: str) -> str:
+        """Fallback simple mood detection"""
+        text_lower = text.lower()
+        
+        # Happy indicators
+        if any(w in text_lower for w in ["great", "awesome", "amazing", "happy", "excited", "love", "wonderful", "fantastic", "yay", "haha", "lol", "😊", "😄", "🎉"]):
+            return "happy"
+        # Sad indicators
+        if any(w in text_lower for w in ["sad", "depressed", "down", "miss", "lonely", "cry", "😢", "😭", "💔"]):
+            return "sad"
+        # Frustrated/Angry
+        if any(w in text_lower for w in ["angry", "annoyed", "frustrated", "hate", "stupid", "damn", "ugh", "wtf", "😡", "🤬"]):
+            return "frustrated"
+        # Tired
+        if any(w in text_lower for w in ["tired", "exhausted", "sleepy", "drained", "worn out", "😴"]):
+            return "tired"
+        # Stressed
+        if any(w in text_lower for w in ["stressed", "overwhelmed", "busy", "deadline", "pressure", "anxious"]):
+            return "stressed"
+        # Curious
+        if any(w in text_lower for w in ["wonder", "curious", "how", "what", "why", "tell me", "explain"]):
+            return "curious"
+        
+        return "neutral"
+    
+    def _analyze_conversation_deeply(self, user_input: str, response: str):
+        """
+        Deep analysis of conversation to learn about user
+        Extracts: topics, interests, communication patterns, schedule hints, preferences
+        """
+        if not hasattr(self, 'openai_client') or not self.openai_client:
+            return
+        
+        try:
+            analysis_prompt = f"""Analyze this conversation exchange and extract insights about the user.
+
+User said: "{user_input}"
+Assistant responded: "{response}"
+
+Extract and return JSON with these fields (only include fields with actual data found):
+{{
+    "topics": ["topic1", "topic2"],  // Topics discussed
+    "interests": ["interest1"],  // User interests/hobbies mentioned
+    "facts": ["fact1"],  // Personal facts (job, family, pets, etc.)
+    "preferences": {{"type": "value"}},  // Preferences learned
+    "schedule_hints": ["hint1"],  // Schedule/routine hints (e.g., "works mornings")
+    "communication_style": "style",  // casual/formal/playful/technical
+    "emotional_state": "state",  // Current emotional state
+    "relationship_hints": ["hint1"]  // How user relates to assistant
+}}
+
+Only include fields where you found actual data. Respond with JSON only."""
+
+            result = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You analyze conversations to understand users. Respond with JSON only."},
+                    {"role": "user", "content": analysis_prompt}
+                ],
+                max_tokens=300,
+                temperature=0.2
+            )
+            
+            analysis_text = result.choices[0].message.content.strip()
+            
+            # Clean markdown if present
+            if analysis_text.startswith("```"):
+                analysis_text = re.sub(r'^```json?\s*', '', analysis_text)
+                analysis_text = re.sub(r'\s*```$', '', analysis_text)
+            
+            analysis = json.loads(analysis_text)
+            
+            # Store learned information
+            self._store_learned_info(analysis)
+            
+        except Exception as e:
+            print(f"[Learn] Analysis error: {e}")
+    
+    def _store_learned_info(self, analysis: Dict):
+        """Store information learned from conversation analysis"""
+        
+        # Store topics
+        for topic in analysis.get("topics", []):
+            if topic and len(topic) > 2:
+                self.topics_discussed.append(topic)
+                db.add_memory("topic", topic, importance=3)
+        
+        # Store interests
+        for interest in analysis.get("interests", []):
+            if interest and interest not in self.user_interests:
+                self.user_interests.append(interest)
+                db.add_memory("interest", interest, importance=7)
+                db.learn_preference("interest", interest)
+                print(f"[Learn] Learned interest: {interest}")
+        
+        # Store facts
+        for fact in analysis.get("facts", []):
+            if fact and len(fact) > 5:
+                db.add_memory("fact", fact, importance=8)
+                print(f"[Learn] Learned fact: {fact}")
+        
+        # Store preferences
+        for pref_type, pref_value in analysis.get("preferences", {}).items():
+            if pref_type and pref_value:
+                db.learn_preference(pref_type, str(pref_value))
+                print(f"[Learn] Learned preference: {pref_type} = {pref_value}")
+        
+        # Store schedule hints
+        for hint in analysis.get("schedule_hints", []):
+            if hint:
+                db.add_memory("schedule", hint, importance=6)
+                print(f"[Learn] Learned schedule: {hint}")
+        
+        # Update communication style
+        style = analysis.get("communication_style")
+        if style and style != self.communication_style:
+            self.communication_style = style
+            db.add_memory("communication_style", style, importance=5)
     
     def _build_dynamic_prompt(self) -> str:
         """Build system prompt with memories and personality"""
@@ -128,8 +289,32 @@ class AIBrain:
         if lessons:
             lessons_context = f"\n\nLESSONS I'VE LEARNED FROM YOU:\n{lessons}"
         
+        # Add current mood context
+        mood_context = ""
+        if self.current_mood != "neutral":
+            mood_responses = {
+                "happy": "The user seems happy - match their energy!",
+                "sad": "The user seems down - be extra supportive and caring.",
+                "frustrated": "The user seems frustrated - be patient, helpful, and don't be too chatty.",
+                "tired": "The user seems tired - keep responses brief and don't overwhelm them.",
+                "stressed": "The user seems stressed - be calming and helpful, offer to help.",
+                "excited": "The user is excited - share their enthusiasm!",
+                "angry": "The user seems upset - be calm, understanding, and helpful.",
+                "curious": "The user is curious - provide detailed, interesting info.",
+                "playful": "The user is being playful - have fun with them!",
+                "bored": "The user might be bored - be engaging and interesting.",
+            }
+            mood_context = f"\n\nCURRENT MOOD DETECTED: {self.current_mood}\n{mood_responses.get(self.current_mood, '')}"
+        
+        # Add user interests if known
+        interests_context = ""
+        if self.user_interests:
+            interests_context = f"\n\nUSER INTERESTS: {', '.join(self.user_interests[:10])}"
+        
         # Combine all
-        full_prompt = base_prompt + location_context + personality_context + memory_context + pref_context + summary_context + lessons_context
+        full_prompt = (base_prompt + location_context + personality_context + 
+                      memory_context + pref_context + summary_context + 
+                      lessons_context + mood_context + interests_context)
         
         return full_prompt
     
@@ -308,8 +493,15 @@ class AIBrain:
         return text
     
     def get_response(self, user_input: str, context: Dict = None) -> str:
-        """Get AI response for user input with memory and personality"""
+        """Get AI response for user input with memory, personality, and mood awareness"""
         self.interaction_count += 1
+        
+        # Track interaction time for pattern learning
+        self.interaction_times.append(datetime.now())
+        
+        # Analyze user's mood from input
+        self.current_mood = self._analyze_mood(user_input)
+        self.mood_history.append({"time": datetime.now(), "mood": self.current_mood})
         
         # Build context-aware prompt
         enhanced_input = user_input
@@ -319,6 +511,10 @@ class AIBrain:
         
         if self.user_name:
             enhanced_input = f"[User's name is {self.user_name}]\n{enhanced_input}"
+        
+        # Add mood context
+        if self.current_mood != "neutral":
+            enhanced_input = f"[User's current mood: {self.current_mood}]\n{enhanced_input}"
         
         # Add conversation count context
         total_convos = db.get_conversation_count()
@@ -335,9 +531,18 @@ class AIBrain:
             
             final_response = self._humanize_response(response)
             
+            # Save and learn
             db.save_conversation(user_input, final_response)
             self._extract_memories(user_input, final_response)
             self._adjust_personality(user_input, final_response)
+            
+            # Deep analysis for learning (run in background to not slow response)
+            import threading
+            threading.Thread(
+                target=self._analyze_conversation_deeply,
+                args=(user_input, final_response),
+                daemon=True
+            ).start()
             
             return final_response
             

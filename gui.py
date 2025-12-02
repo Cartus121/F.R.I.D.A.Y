@@ -373,18 +373,20 @@ class ModernGUI:
         current_text = ""
         
         # Edge TTS speaks at ~150-160 WPM naturally
-        # Estimate speech duration and divide by word count
         word_count = len(words)
         if word_count == 0:
             return
         
-        # Audio generation takes ~300-500ms, then speech starts
-        # Edge TTS rate is approximately 3.5 words/second = ~286ms per word
-        ms_per_word = 280  # Slightly faster to stay in sync
+        # Calculate timing based on text length
+        # Edge TTS generation time scales with text length
+        # Short text: ~500ms generation, Long text: ~1000ms+ generation
+        base_generation_delay = 800  # Base delay for audio generation
+        length_factor = min(word_count * 20, 700)  # Additional delay for longer text
+        initial_delay = base_generation_delay + length_factor
         
-        # Initial delay to account for audio file generation + start
-        # Edge TTS takes time to generate audio before playback begins
-        initial_delay = 650  # 650ms for audio generation + playback start
+        # Edge TTS speaks at ~3.2-3.5 words/second = ~300ms per word
+        # Slightly slower to ensure text stays behind speech
+        ms_per_word = 310
         
         def show_word(index):
             nonlocal current_text
