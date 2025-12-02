@@ -68,9 +68,9 @@ class CommandHandler:
         """Remove filler words and politeness phrases from command"""
         filler_words = [
             "please", "could you", "can you", "would you", "hey", "hi", "hello",
-            "thank you", "thanks", "okay", "ok", "um", "uh", "like", "just",
-            "actually", "basically", "i want you to", "i need you to", "i want to",
-            "i need to", "i would like to", "i'd like to", "kindly", "if you could",
+            "okay", "ok", "um", "uh", "like", "just", "actually", "basically", 
+            "i want you to", "i need you to", "i want to", "i need to", 
+            "i would like to", "i'd like to", "kindly", "if you could",
             "go ahead and", "friday", "hey friday", "yo", "sup", "alright",
         ]
         
@@ -84,122 +84,47 @@ class CommandHandler:
         
     def process(self, command: str) -> Tuple[str, bool]:
         """
-        Process a voice command and return response
+        Process a voice command using AI to understand intent
         Returns: (response_text, should_continue_listening)
         """
         original_command = command.lower().strip()
-        command = self._clean_command(original_command)
+        cleaned_command = self._clean_command(original_command)
         
-        if not command:
+        if not cleaned_command:
             return ("I didn't catch that.", True)
         
-        # Wake word response - F.R.I.D.A.Y. style
-        if command == "__wake__" or original_command == "__wake__":
+        # Wake word response
+        if cleaned_command == "__wake__" or original_command == "__wake__":
             return ("Yes? What do you need?", True)
         
-        # === Sleep Commands - Check ONLY exact phrases (not mixed with other commands) ===
-        sleep_only = ["goodbye", "go to sleep", "that's all", "stop listening", "пока", "до свидания"]
-        thanks_only = ["thank you", "thanks", "спасибо"]
-        
-        if original_command.strip() in sleep_only:
+        # === Only check for sleep/goodbye as EXACT standalone phrases ===
+        goodbye_phrases = ["goodbye", "go to sleep", "that's all", "stop listening", "bye", "пока", "до свидания"]
+        if original_command.strip() in goodbye_phrases:
             return (f"Standing by. Say '{WAKE_WORD}' when you need me.", False)
         
-        if original_command.strip() in thanks_only:
+        # Only sleep on standalone "thanks" - not mixed with other words
+        if original_command.strip() in ["thank you", "thanks", "спасибо"]:
             return ("Of course. I'll be here.", False)
         
-        # === Time & Date ===
-        if any(phrase in command for phrase in ["what time", "current time", "tell me the time", "time is it"]):
-            return self._get_time(), True
-        
-        if any(phrase in command for phrase in ["what date", "the date", "today's date", "what day"]):
-            return self._get_date(), True
-        
-        # === Timer Commands ===
-        if any(phrase in command for phrase in ["set timer", "set a timer", "timer for", "start timer"]):
-            return self._set_timer(command), True
-        
-        if any(phrase in command for phrase in ["cancel timer", "stop timer", "clear timer"]):
-            return self._cancel_timer(command), True
-        
-        if any(phrase in command for phrase in ["how much time", "timer status", "time left"]):
-            return self._get_timer_status(), True
-        
-        # === Calculator ===
-        if any(phrase in command for phrase in ["calculate", "what is", "what's", "how much is"]):
-            calc_result = self._calculate(command)
-            if calc_result:
-                return calc_result, True
-        
-        # === Unit Conversions ===
-        if any(phrase in command for phrase in ["convert", "how many", "how much"]):
-            conv_result = self._convert_units(command)
-            if conv_result:
-                return conv_result, True
-        
-        # === Calendar ===
-        if any(phrase in command for phrase in ["add event", "schedule", "create event", "add to calendar"]):
-            return self._add_calendar_event(command), True
-        
-        if any(phrase in command for phrase in ["my calendar", "my events", "what's on", "upcoming events", "today's events"]):
-            return self._get_calendar_events(command), True
-        
-        # === Notes ===
-        if any(phrase in command for phrase in ["take a note", "write down", "remember this", "note that"]):
-            return self._add_note(command), True
-        
-        if any(phrase in command for phrase in ["read my notes", "my notes", "show notes", "list notes"]):
-            return self._get_notes(), True
-        
-        # === Weather (ONLY when explicitly asking about weather/outside) ===
-        weather_triggers = ["weather", "forecast", "outside", "rain", "sunny", "cloudy", "umbrella", "jacket"]
-        if any(phrase in command for phrase in weather_triggers) and "pc" not in command and "computer" not in command and "system" not in command:
-            return self._get_weather(), True
-        
-        # === System Status (expanded triggers for natural language) ===
-        system_triggers = [
-            "system status", "system info", "pc status", "computer status",
-            "diagnostics", "how we looking", "how are we looking", "are we good",
-            "how's my pc", "how's my computer", "how's the system", "how's the pc",
-            "cpu", "ram", "memory", "storage", "disk", "temps", "temperature",
-            "health check", "status check", "run diagnostics", "check system",
-            "how's everything", "everything okay", "all good"
-        ]
-        # Check if asking about system (not weather)
-        if any(phrase in command for phrase in system_triggers):
-            # Make sure they're not asking about weather temperature
-            if "outside" not in command and "weather" not in command:
-                return self._get_system_status(), True
-        
-        # === Web Search (detect "search" keyword) ===
-        if "search" in command:
-            return self._web_search(command), True
-        
-        # === Open Application / File / Folder ===
-        if "open" in command or "launch" in command or "start" in command or "run" in command:
-            return self._open_application(command), True
-        
-        # === Open URL / Website ===
-        if any(phrase in command for phrase in ["go to", "visit", "website"]):
-            return self._open_website(command), True
-        
-        # === Reminders ===
-        if any(phrase in command for phrase in ["remind me", "set reminder", "set a reminder"]):
-            return self._set_reminder(command), True
-        
-        # === Sleep Commands - F.R.I.D.A.Y. style ===
-        if any(phrase in command for phrase in ["goodbye", "go to sleep", "that's all", "stop listening", 
-                                                  "пока", "до свидания"]):
-            return (f"Standing by. Say '{WAKE_WORD}' when you need me.", False)
-        
-        if any(phrase in command for phrase in ["thank you", "thanks", "спасибо"]):
-            return ("Of course. I'll be here.", False)
-        
-        # === Default: AI Response ===
-        response = brain.get_response(command, context={
+        # === Use AI to determine intent and handle the request ===
+        # Let the AI brain figure out what the user wants
+        response = brain.get_response(cleaned_command, context={
             "current_time": datetime.now().strftime(TIME_FORMAT),
             "current_date": datetime.now().strftime(DATE_FORMAT),
-            "location": LOCATION
+            "location": LOCATION,
+            "available_actions": "open apps, search web, check system status, set timers, weather, calendar, notes, reminders"
         })
+        
+        # Check if AI wants us to perform an action
+        response_lower = response.lower()
+        
+        # If AI indicates it needs system info, get it
+        if any(word in response_lower for word in ["checking system", "let me check", "checking cpu", "checking diagnostics"]):
+            return self._get_system_status(), True
+        
+        # If AI indicates weather request
+        if "checking weather" in response_lower or "let me get the weather" in response_lower:
+            return self._get_weather(), True
         
         return response, True
     
