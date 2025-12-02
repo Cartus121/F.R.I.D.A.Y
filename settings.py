@@ -202,7 +202,16 @@ def show_settings_dialog(parent=None) -> bool:
         text=f"⚙️ {ai_name} Settings",
         font=ctk.CTkFont(size=24, weight="bold")
     )
-    title.pack(pady=15)
+    title.pack(pady=(15, 0))
+    
+    # Subtitle - Full name
+    subtitle = ctk.CTkLabel(
+        dialog,
+        text="Female Replacement Intelligent Digital Assistant Youth",
+        font=ctk.CTkFont(size=11),
+        text_color="gray"
+    )
+    subtitle.pack(pady=(0, 15))
     
     # Scrollable frame
     scroll_frame = ctk.CTkScrollableFrame(dialog, height=480)
@@ -216,7 +225,8 @@ def show_settings_dialog(parent=None) -> bool:
     api_frame = ctk.CTkFrame(scroll_frame)
     api_frame.pack(fill="x", pady=5)
     
-    ctk.CTkLabel(api_frame, text="OpenAI API Key (optional - for AI chat):", font=ctk.CTkFont(size=12)).pack(anchor="w", padx=10, pady=(8, 3))
+    ctk.CTkLabel(api_frame, text="OpenAI API Key:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
+    ctk.CTkLabel(api_frame, text="Required for AI responses and internet features", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=10, pady=(0, 3))
     api_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="sk-proj-...", show="*")
     api_entry.pack(padx=10, pady=(0, 8))
     if settings.get("openai_api_key"):

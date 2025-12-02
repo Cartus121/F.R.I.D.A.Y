@@ -136,6 +136,7 @@ class AIBrain:
     def _detect_correction(self, user_input: str) -> bool:
         """Detect if user is correcting F.R.I.D.A.Y."""
         correction_phrases = [
+            # Explicit corrections
             "no that's wrong", "that's not what i", "i didn't ask", "i meant",
             "no i said", "wrong", "that's not right", "not what i wanted",
             "you misunderstood", "i was asking about", "no no no", "nope",
@@ -143,7 +144,15 @@ class AIBrain:
             "you should", "you shouldn't", "next time", "remember that",
             "i told you", "i already said", "listen", "pay attention",
             "not that", "the other", "i was talking about", "when i say",
-            "that means", "understand", "learn this", "remember this"
+            "that means", "understand", "learn this", "remember this",
+            # Casual corrections (new)
+            "bruh no", "dude no", "nah nah", "not even close", "what no",
+            "bro what", "thats not", "thats wrong", "no no", "wait no",
+            "hold up", "actually no", "uh no", "um no", "wtf no",
+            "huh no", "eh no", "nah that's", "that ain't", "aint it",
+            "you're wrong", "youre wrong", "miss", "missed", "way off",
+            "completely wrong", "totally wrong", "so wrong", "very wrong",
+            "no dude", "no man", "no bro", "no bruh", "cmon", "come on",
         ]
         user_lower = user_input.lower()
         return any(phrase in user_lower for phrase in correction_phrases)

@@ -34,6 +34,24 @@ from config import (
     WINDOW_WIDTH,
 )
 
+# Import new colors if available
+try:
+    from config import (
+        ACCENT_HOVER, BG_DARK, BG_CARD, TEXT_DIM, SUCCESS,
+        ACCENT_GRADIENT, ACCENT_DARK, USER_BUBBLE_COLOR, ASSISTANT_BUBBLE_COLOR
+    )
+except ImportError:
+    # Fallback colors if not defined in config
+    ACCENT_HOVER = "#6d28d9"
+    BG_DARK = "#0f0f1a"
+    BG_CARD = "#1a1a2e"
+    TEXT_DIM = "#6b7280"
+    SUCCESS = "#22c55e"
+    ACCENT_GRADIENT = "#a855f7"
+    ACCENT_DARK = "#5b21b6"
+    USER_BUBBLE_COLOR = "#6366f1"
+    ASSISTANT_BUBBLE_COLOR = "#1e1b4b"
+
 # Translation support
 try:
     from translations import get_text, get_language
@@ -107,7 +125,7 @@ class ModernGUI:
     
     def _create_header(self):
         """Create header section"""
-        header_frame = ctk.CTkFrame(self.root, height=60, corner_radius=0)
+        header_frame = ctk.CTkFrame(self.root, height=60, corner_radius=0, fg_color=BG_CARD)
         header_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
         header_frame.grid_columnconfigure(1, weight=1)
         
@@ -121,7 +139,8 @@ class ModernGUI:
         title_label = ctk.CTkLabel(
             header_frame,
             text=app_name,
-            font=ctk.CTkFont(size=24, weight="bold")
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color=ACCENT_COLOR
         )
         title_label.grid(row=0, column=0, padx=15, pady=10)
         
@@ -129,7 +148,7 @@ class ModernGUI:
             header_frame,
             text="Female Replacement Intelligent Digital Assistant Youth",
             font=ctk.CTkFont(size=11),
-            text_color="gray"
+            text_color=TEXT_DIM
         )
         subtitle_label.grid(row=0, column=1, padx=5, pady=10, sticky="w")
         
@@ -154,8 +173,8 @@ class ModernGUI:
             height=30,
             font=ctk.CTkFont(size=11),
             command=self._on_update_click,
-            fg_color="gray40",
-            hover_color="gray30"
+            fg_color="#374151",
+            hover_color="#4b5563"
         )
         self.update_button.grid(row=0, column=3, padx=5, pady=10)
         self.update_available = False  # Track if update is available
@@ -164,13 +183,13 @@ class ModernGUI:
             header_frame,
             text=get_text("sleeping", self.lang),
             font=ctk.CTkFont(size=12),
-            text_color="gray"
+            text_color=TEXT_DIM
         )
         self.status_indicator.grid(row=0, column=4, padx=15, pady=10)
     
     def _create_status_panel(self):
         """Create small status panel showing what F.R.I.D.A.Y. is doing"""
-        status_panel = ctk.CTkFrame(self.root, height=50, corner_radius=8, fg_color=("gray90", "gray17"))
+        status_panel = ctk.CTkFrame(self.root, height=50, corner_radius=10, fg_color=BG_CARD, border_width=1, border_color="#2a2a4a")
         status_panel.grid(row=1, column=0, sticky="ew", padx=15, pady=(5, 5))
         status_panel.grid_columnconfigure(1, weight=1)
         
@@ -187,7 +206,7 @@ class ModernGUI:
             status_panel,
             text="Standing by...",
             font=ctk.CTkFont(size=12, family="Consolas"),
-            text_color=("gray40", "gray60"),
+            text_color="#9ca3af",
             anchor="w"
         )
         self.action_label.grid(row=0, column=1, padx=5, pady=8, sticky="w")
@@ -197,7 +216,7 @@ class ModernGUI:
             status_panel,
             text="CPU: --% | RAM: --%",
             font=ctk.CTkFont(size=10),
-            text_color=("gray50", "gray50")
+            text_color=TEXT_DIM
         )
         self.stats_label.grid(row=0, column=2, padx=10, pady=8)
         
@@ -228,8 +247,8 @@ class ModernGUI:
         """Create scrollable chat area"""
         self.chat_frame = ctk.CTkScrollableFrame(
             self.root,
-            corner_radius=10,
-            fg_color=("gray95", "gray10")
+            corner_radius=12,
+            fg_color=BG_DARK
         )
         self.chat_frame.grid(row=2, column=0, sticky="nsew", padx=15, pady=5)
         self.chat_frame.grid_columnconfigure(0, weight=1)
@@ -239,7 +258,7 @@ class ModernGUI:
     
     def _create_input_area(self):
         """Create input area with text entry and buttons"""
-        input_frame = ctk.CTkFrame(self.root, corner_radius=10)
+        input_frame = ctk.CTkFrame(self.root, corner_radius=12, fg_color=BG_CARD)
         input_frame.grid(row=3, column=0, sticky="ew", padx=15, pady=10)
         input_frame.grid_columnconfigure(0, weight=1)
         
@@ -247,7 +266,9 @@ class ModernGUI:
             input_frame,
             placeholder_text=get_text("placeholder", self.lang),
             height=45,
-            font=ctk.CTkFont(size=14)
+            font=ctk.CTkFont(size=14),
+            fg_color=BG_DARK,
+            border_color=ACCENT_COLOR
         )
         self.text_entry.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
         self.text_entry.bind("<Return>", self._on_text_submit)
@@ -273,7 +294,7 @@ class ModernGUI:
             font=ctk.CTkFont(size=12, weight="bold"),
             command=self._on_mic_click,
             fg_color=ACCENT_COLOR,
-            hover_color="#7c3aed"
+            hover_color=ACCENT_HOVER
         )
         self.mic_button.grid(row=0, column=2, padx=5, pady=10)
         
@@ -313,26 +334,29 @@ class ModernGUI:
     
     def _add_message(self, text: str, is_user: bool = False, typing_effect: bool = False):
         """Add a message bubble to the chat"""
+        # User messages: accent purple, Assistant: dark card color
         msg_frame = ctk.CTkFrame(
             self.chat_frame,
-            corner_radius=15,
-            fg_color=(ACCENT_COLOR if is_user else ("gray85", "gray20"))
+            corner_radius=18,
+            fg_color=(ACCENT_COLOR if is_user else BG_CARD),
+            border_width=1,
+            border_color=(ACCENT_HOVER if is_user else "#2a2a4a")
         )
         
         if is_user:
-            msg_frame.grid(sticky="e", padx=(100, 10), pady=5)
+            msg_frame.grid(sticky="e", padx=(100, 10), pady=8)
         else:
-            msg_frame.grid(sticky="w", padx=(10, 100), pady=5)
+            msg_frame.grid(sticky="w", padx=(10, 100), pady=8)
         
         msg_label = ctk.CTkLabel(
             msg_frame,
             text="" if typing_effect and not is_user else text,
             font=ctk.CTkFont(size=14),
-            text_color=("white" if is_user else ("black", "white")),
+            text_color=("white" if is_user else "#e0e0e0"),
             wraplength=400,
             justify="left"
         )
-        msg_label.pack(padx=15, pady=10)
+        msg_label.pack(padx=18, pady=12)
         
         self.root.after(100, lambda: self.chat_frame._parent_canvas.yview_moveto(1.0))
         
@@ -343,17 +367,24 @@ class ModernGUI:
         return msg_label
     
     def _type_words(self, label, text: str, words_per_minute: int = 750):
-        """Display text word by word - AFTER audio starts"""
+        """Display text word by word - synced with speech timing"""
         self.stop_typing = False  # Reset stop flag
         words = text.split()
         current_text = ""
         
-        # Speech rate is ~150-180 WPM = ~350ms per word
-        # Text should appear AS words are spoken
-        ms_per_word = 300  # Match speech rate
+        # Edge TTS speaks at ~150-160 WPM naturally
+        # Estimate speech duration and divide by word count
+        word_count = len(words)
+        if word_count == 0:
+            return
         
-        # IMPORTANT: Delay start by 500ms to let audio begin first
-        initial_delay = 500
+        # Audio generation takes ~300-500ms, then speech starts
+        # Edge TTS rate is approximately 3.5 words/second = ~286ms per word
+        ms_per_word = 280  # Slightly faster to stay in sync
+        
+        # Initial delay to account for audio file generation + start
+        # Edge TTS takes time to generate audio before playback begins
+        initial_delay = 650  # 650ms for audio generation + playback start
         
         def show_word(index):
             nonlocal current_text
