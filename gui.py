@@ -440,7 +440,11 @@ class ModernGUI:
         """Check for updates in background"""
         def check():
             try:
-                from updater import UpdateChecker, check_for_updates, CURRENT_VERSION
+                from updater import UpdateChecker, check_for_updates, CURRENT_VERSION, GITHUB_OWNER, GITHUB_REPO
+                
+                # Store github info for later use
+                self.github_owner = GITHUB_OWNER
+                self.github_repo = GITHUB_REPO
                 
                 # Update button to show checking
                 self.root.after(0, lambda: self.update_button.configure(
@@ -509,19 +513,22 @@ class ModernGUI:
         """Show update confirmation dialog"""
         dialog = ctk.CTkToplevel(self.root)
         dialog.title("Update F.R.I.D.A.Y.")
-        dialog.geometry("400x250")
+        dialog.geometry("420x280")
         dialog.transient(self.root)
         dialog.grab_set()
         
         # Center the dialog
         dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() - 400) // 2
-        y = (dialog.winfo_screenheight() - 250) // 2
+        x = (dialog.winfo_screenwidth() - 420) // 2
+        y = (dialog.winfo_screenheight() - 280) // 2
         dialog.geometry(f"+{x}+{y}")
         
         # Content
         version = self.update_info.get("version", "New version")
         current = self.update_info.get("current", "Unknown")
+        source = self.update_info.get("source", "release")
+        download_url = self.update_info.get("download_url")
+        html_url = self.update_info.get("html_url", "")
         
         ctk.CTkLabel(
             dialog,
@@ -536,12 +543,24 @@ class ModernGUI:
             text_color="gray"
         ).pack(pady=5)
         
-        ctk.CTkLabel(
-            dialog,
-            text="F.R.I.D.A.Y. will download the update,\nrestart, and be back online shortly.",
-            font=ctk.CTkFont(size=12),
-            justify="center"
-        ).pack(pady=15)
+        # Check if this is a tag-only update (no .exe available)
+        is_tag_only = source == "tag" or not download_url or download_url.endswith(".zip")
+        
+        if is_tag_only:
+            ctk.CTkLabel(
+                dialog,
+                text="No pre-built executable yet.\nPlease download source and rebuild,\nor check back later for the release.",
+                font=ctk.CTkFont(size=12),
+                justify="center",
+                text_color="#eab308"
+            ).pack(pady=15)
+        else:
+            ctk.CTkLabel(
+                dialog,
+                text="F.R.I.D.A.Y. will download the update,\nrestart, and be back online shortly.",
+                font=ctk.CTkFont(size=12),
+                justify="center"
+            ).pack(pady=15)
         
         # Progress bar (hidden initially)
         self.update_progress = ctk.CTkProgressBar(dialog, width=300)
@@ -592,14 +611,32 @@ class ModernGUI:
             
             threading.Thread(target=do_update, daemon=True).start()
         
-        update_btn = ctk.CTkButton(
-            btn_frame,
-            text="Update Now",
-            width=120,
-            fg_color="#22c55e",
-            hover_color="#16a34a",
-            command=start_update
-        )
+        def open_github():
+            """Open GitHub releases page"""
+            import webbrowser
+            github_url = html_url or f"https://github.com/{getattr(self, 'github_owner', 'Cartus121')}/{getattr(self, 'github_repo', 'F.R.I.D.A.Y')}/releases"
+            webbrowser.open(github_url)
+            dialog.destroy()
+        
+        # Show different buttons based on update type
+        if is_tag_only:
+            update_btn = ctk.CTkButton(
+                btn_frame,
+                text="Open GitHub",
+                width=120,
+                fg_color="#6366f1",
+                hover_color="#4f46e5",
+                command=open_github
+            )
+        else:
+            update_btn = ctk.CTkButton(
+                btn_frame,
+                text="Update Now",
+                width=120,
+                fg_color="#22c55e",
+                hover_color="#16a34a",
+                command=start_update
+            )
         update_btn.pack(side="left", padx=10)
         
         cancel_btn = ctk.CTkButton(

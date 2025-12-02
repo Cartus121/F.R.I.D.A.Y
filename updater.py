@@ -20,9 +20,10 @@ from typing import Callable, Optional, Tuple
 GITHUB_OWNER = "Cartus121"
 GITHUB_REPO = "F.R.I.D.A.Y"
 RELEASES_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+TAGS_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/tags"
 
 # Current version - update this when releasing
-CURRENT_VERSION = "alpha-v23"
+CURRENT_VERSION = "alpha-v24"
 
 
 def get_current_version() -> str:
@@ -73,11 +74,21 @@ def is_newer_version(latest: str, current: str) -> bool:
 
 def check_for_updates() -> Optional[dict]:
     """
-    Check GitHub for new releases
+    Check GitHub for new releases or tags
     Returns dict with version info if update available, None otherwise
     """
+    # First try releases API
+    update_info = _check_releases()
+    if update_info:
+        return update_info
+    
+    # Fall back to tags API (for when releases don't exist)
+    return _check_tags()
+
+
+def _check_releases() -> Optional[dict]:
+    """Check GitHub releases for updates"""
     try:
-        # Create request with User-Agent header (GitHub requires it)
         request = urllib.request.Request(
             RELEASES_URL,
             headers={"User-Agent": "F.R.I.D.A.Y-Updater/1.0"}
@@ -117,19 +128,52 @@ def check_for_updates() -> Optional[dict]:
                 "download_url": download_url,
                 "asset_name": asset_name,
                 "release_notes": data.get("body", ""),
-                "html_url": data.get("html_url", "")
+                "html_url": data.get("html_url", ""),
+                "source": "release"
             }
         
         return None
         
-    except urllib.error.URLError as e:
-        print(f"[Updater] Network error checking for updates: {e}")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"[Updater] Error parsing update response: {e}")
-        return None
     except Exception as e:
-        print(f"[Updater] Error checking for updates: {e}")
+        print(f"[Updater] Releases check: {e}")
+        return None
+
+
+def _check_tags() -> Optional[dict]:
+    """Check GitHub tags for updates (fallback when no releases)"""
+    try:
+        request = urllib.request.Request(
+            TAGS_URL,
+            headers={"User-Agent": "F.R.I.D.A.Y-Updater/1.0"}
+        )
+        
+        with urllib.request.urlopen(request, timeout=10) as response:
+            tags = json.loads(response.read().decode())
+        
+        if not tags:
+            return None
+        
+        # Tags are returned newest first, get the latest
+        latest_tag = tags[0].get("name", "")
+        
+        if is_newer_version(latest_tag, CURRENT_VERSION):
+            # No downloadable asset from tags - provide source download link
+            zipball_url = f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/archive/refs/tags/{latest_tag}.zip"
+            
+            return {
+                "version": latest_tag,
+                "current": CURRENT_VERSION,
+                "download_url": zipball_url,
+                "asset_name": f"{GITHUB_REPO}-{latest_tag}.zip",
+                "release_notes": f"New version {latest_tag} is available!\nPlease download and rebuild, or wait for an official release.",
+                "html_url": f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tag/{latest_tag}",
+                "source": "tag"  # Indicates this came from tag, not release
+            }
+        
+        return None
+        
+    except Exception as e:
+        print(f"[Updater] Tags check: {e}")
         return None
 
 

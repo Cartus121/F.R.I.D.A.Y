@@ -43,6 +43,10 @@ def main():
     is_windows = sys.platform == 'win32'
     exe_name = "FRIDAY.exe" if is_windows else "FRIDAY"
     
+    # Icon file path
+    icon_file = script_dir / "icon.ico"
+    has_icon = icon_file.exists()
+    
     # PyInstaller command
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -73,10 +77,17 @@ def main():
         
         # Collect all data for customtkinter (themes, etc.)
         "--collect-all=customtkinter",
-        
-        # Entry point
-        "main.py"
     ]
+    
+    # Add icon if exists
+    if has_icon:
+        cmd.append(f"--icon={icon_file}")
+        print(f"[OK] Using icon: {icon_file}")
+    else:
+        print("[!] No icon.ico found - using default icon")
+    
+    # Entry point
+    cmd.append("main.py")
     
     print("[*] Running PyInstaller...")
     print(f"    Target: {exe_name}")
