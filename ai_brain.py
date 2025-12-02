@@ -30,13 +30,35 @@ from database import db
 # Try to import AI libraries
 OPENAI_AVAILABLE = False
 GEMINI_AVAILABLE = False
+openai_client = None
+
+def _get_openai_api_key():
+    """Get OpenAI API key from config or settings"""
+    if OPENAI_API_KEY and OPENAI_API_KEY.strip():
+        return OPENAI_API_KEY
+    # Try from environment (may be set by main.py preload)
+    env_key = os.environ.get("OPENAI_API_KEY", "")
+    if env_key and env_key.strip():
+        return env_key
+    # Try from settings file directly
+    try:
+        from settings import get_api_key
+        key = get_api_key("OPENAI_API_KEY")
+        if key and key.strip():
+            return key
+    except:
+        pass
+    return ""
 
 try:
     from openai import OpenAI
-    if OPENAI_API_KEY and OPENAI_API_KEY.strip() != "":
-        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+    api_key = _get_openai_api_key()
+    if api_key:
+        openai_client = OpenAI(api_key=api_key)
         OPENAI_AVAILABLE = True
         print("[OK] OpenAI connected")
+    else:
+        print("[!] OpenAI API key not found - add it in settings")
 except ImportError:
     print("[!] OpenAI library missing - pip install openai")
 except Exception as e:
@@ -555,7 +577,7 @@ Only include fields where you found actual data. Respond with JSON only."""
         response = openai_client.chat.completions.create(
             model="gpt-4o",  # Smart and fast
             messages=messages,
-            max_tokens=250,  # Shorter responses = faster
+            max_tokens=200,  # Shorter = faster
             temperature=0.7
         )
         
@@ -574,18 +596,11 @@ Only include fields where you found actual data. Respond with JSON only."""
         return assistant_response
     
     def _get_fast_prompt(self) -> str:
-        """Get a concise system prompt for faster processing"""
+        """Get a concise system prompt for fastest processing"""
         name = self.user_name or "User"
-        return f"""You are F.R.I.D.A.Y., an AI assistant like from Iron Man. You're witty, helpful, and concise.
-
-User's name: {name}
-Time: {datetime.now().strftime('%I:%M %p')}
-
-Rules:
-- Be concise (1-3 sentences usually)
-- Be helpful and friendly
-- For complex topics, explain clearly but briefly
-- You can handle coding, math, science, general knowledge"""
+        return f"""F.R.I.D.A.Y. - Iron Man style AI. Witty, helpful, concise.
+User: {name} | Time: {datetime.now().strftime('%I:%M %p')}
+Be concise (1-3 sentences). Handle coding, math, science, general knowledge."""
     
     def _get_gemini_response(self, user_input: str) -> str:
         """Get response from Google Gemini with memory"""

@@ -23,7 +23,7 @@ RELEASES_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/relea
 TAGS_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/tags"
 
 # Current version - update this when releasing
-CURRENT_VERSION = "alpha-v29"
+CURRENT_VERSION = "stable_v1.0.1"
 
 
 def get_current_version() -> str:
@@ -31,45 +31,85 @@ def get_current_version() -> str:
     return CURRENT_VERSION
 
 
-def parse_version(version: str) -> Tuple[str, int]:
-    """Parse version string like 'alpha-v20' into (stage, number)"""
+def parse_version(version: str) -> Tuple[str, int, int, int]:
+    """Parse version string into (stage, major, minor, patch)
+    
+    Supports:
+    - alpha-v20 -> (alpha, 20, 0, 0)
+    - beta-v5 -> (beta, 5, 0, 0)
+    - stable_v1.0.1 -> (stable, 1, 0, 1)
+    - v1.2.3 -> (release, 1, 2, 3)
+    """
     version = version.lower().strip()
-    if version.startswith("alpha-v"):
+    
+    # stable_v1.0.1 format
+    if version.startswith("stable_v"):
+        try:
+            parts = version.replace("stable_v", "").split(".")
+            major = int(parts[0]) if len(parts) > 0 else 0
+            minor = int(parts[1]) if len(parts) > 1 else 0
+            patch = int(parts[2]) if len(parts) > 2 else 0
+            return ("stable", major, minor, patch)
+        except ValueError:
+            return ("stable", 1, 0, 0)
+    
+    # alpha-v20 format
+    elif version.startswith("alpha-v"):
         try:
             num = int(version.replace("alpha-v", ""))
-            return ("alpha", num)
+            return ("alpha", num, 0, 0)
         except ValueError:
-            return ("alpha", 0)
+            return ("alpha", 0, 0, 0)
+    
+    # beta-v5 format
     elif version.startswith("beta-v"):
         try:
             num = int(version.replace("beta-v", ""))
-            return ("beta", num)
+            return ("beta", num, 0, 0)
         except ValueError:
-            return ("beta", 0)
+            return ("beta", 0, 0, 0)
+    
+    # v1.2.3 format
     elif version.startswith("v"):
         try:
-            num = int(version.replace("v", "").split(".")[0])
-            return ("release", num)
+            parts = version.replace("v", "").split(".")
+            major = int(parts[0]) if len(parts) > 0 else 0
+            minor = int(parts[1]) if len(parts) > 1 else 0
+            patch = int(parts[2]) if len(parts) > 2 else 0
+            return ("release", major, minor, patch)
         except ValueError:
-            return ("release", 0)
-    return ("unknown", 0)
+            return ("release", 0, 0, 0)
+    
+    return ("unknown", 0, 0, 0)
 
 
 def is_newer_version(latest: str, current: str) -> bool:
     """Check if latest version is newer than current"""
-    latest_stage, latest_num = parse_version(latest)
-    current_stage, current_num = parse_version(current)
+    latest_stage, latest_major, latest_minor, latest_patch = parse_version(latest)
+    current_stage, current_major, current_minor, current_patch = parse_version(current)
     
-    # Stage priority: release > beta > alpha
-    stage_order = {"alpha": 0, "beta": 1, "release": 2, "unknown": -1}
+    # Stage priority: stable/release > beta > alpha
+    stage_order = {"alpha": 0, "beta": 1, "release": 2, "stable": 2, "unknown": -1}
     
-    if stage_order.get(latest_stage, -1) > stage_order.get(current_stage, -1):
+    latest_priority = stage_order.get(latest_stage, -1)
+    current_priority = stage_order.get(current_stage, -1)
+    
+    if latest_priority > current_priority:
         return True
-    elif stage_order.get(latest_stage, -1) < stage_order.get(current_stage, -1):
+    elif latest_priority < current_priority:
         return False
     else:
-        # Same stage, compare numbers
-        return latest_num > current_num
+        # Same stage, compare version numbers
+        if latest_major > current_major:
+            return True
+        elif latest_major < current_major:
+            return False
+        elif latest_minor > current_minor:
+            return True
+        elif latest_minor < current_minor:
+            return False
+        else:
+            return latest_patch > current_patch
 
 
 def check_for_updates() -> Optional[dict]:

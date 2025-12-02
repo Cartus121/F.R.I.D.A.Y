@@ -11,18 +11,57 @@ import os
 from pathlib import Path
 
 # =============================================================================
-# 🔑 API KEYS - Paste your keys below or set as environment variables
+# 🔑 API KEYS - Smart loading from settings file + environment
 # =============================================================================
+
+def _load_api_key(key_name: str, default: str = "") -> str:
+    """Load API key from environment first, then settings file"""
+    # First check environment (may have been set by main.py preload)
+    env_val = os.environ.get(key_name, "")
+    if env_val and env_val.strip():
+        return env_val.strip()
+    
+    # Try to load from settings file directly
+    try:
+        settings_path = Path.home() / "friday-assistant" / "settings.json"
+        if settings_path.exists():
+            import json
+            with open(settings_path, 'r') as f:
+                settings = json.load(f)
+                
+                # Map key names to settings file key names
+                key_map = {
+                    "OPENAI_API_KEY": "openai_api_key",
+                    "GOOGLE_API_KEY": "google_api_key",
+                    "OPENWEATHER_API_KEY": "openweather_api_key",
+                }
+                
+                settings_key = key_map.get(key_name, key_name.lower())
+                val = settings.get(settings_key, "")
+                
+                # Also check api_keys dict (alternate format)
+                if not val:
+                    api_keys = settings.get("api_keys", {})
+                    val = api_keys.get(key_name, "")
+                
+                if val and val.strip() and not val.startswith("YOUR_"):
+                    # Also set environment for other modules
+                    os.environ[key_name] = val.strip()
+                    return val.strip()
+    except Exception as e:
+        pass
+    
+    return default
 
 # OpenAI API Key (REQUIRED for AI chat)
 # Get it at: https://platform.openai.com/api-keys
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_API_KEY = _load_api_key("OPENAI_API_KEY")
 
 # Optional: Google Gemini API (alternative to OpenAI)
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+GOOGLE_API_KEY = _load_api_key("GOOGLE_API_KEY")
 
 # Optional: OpenWeather API (for weather info)
-OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
+OPENWEATHER_API_KEY = _load_api_key("OPENWEATHER_API_KEY")
 
 # =============================================================================
 # 🎤 VOICE SETTINGS

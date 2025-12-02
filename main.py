@@ -2,6 +2,7 @@
 """
 F.R.I.D.A.Y. - Female Replacement Intelligent Digital Assistant Youth
 Main entry point with integrated loading screen
+stable_v1.0.1 - Optimized for Windows
 """
 
 import logging
@@ -13,6 +14,47 @@ import tkinter as tk
 import math
 from pathlib import Path
 from queue import Queue
+
+# =============================================================================
+# CRITICAL: Load API keys BEFORE any other imports
+# This ensures config.py gets the right values
+# =============================================================================
+def _preload_api_keys():
+    """Load API keys from settings file into environment FIRST"""
+    try:
+        settings_path = Path.home() / "friday-assistant" / "settings.json"
+        if settings_path.exists():
+            import json
+            with open(settings_path, 'r') as f:
+                settings = json.load(f)
+                
+                # Map settings file keys to environment variable names
+                key_map = {
+                    "openai_api_key": "OPENAI_API_KEY",
+                    "google_api_key": "GOOGLE_API_KEY",
+                    "openweather_api_key": "OPENWEATHER_API_KEY",
+                }
+                
+                # Load from mapped keys (new format)
+                for settings_key, env_key in key_map.items():
+                    value = settings.get(settings_key, "")
+                    if value and value.strip() and not value.startswith("YOUR_"):
+                        if env_key not in os.environ or not os.environ[env_key]:
+                            os.environ[env_key] = value.strip()
+                            print(f"[OK] Loaded {env_key} from settings")
+                
+                # Also check api_keys dict (alternate format)
+                api_keys = settings.get("api_keys", {})
+                for key, value in api_keys.items():
+                    if value and value.strip() and not value.startswith("YOUR_"):
+                        if key not in os.environ or not os.environ[key]:
+                            os.environ[key] = value.strip()
+                            print(f"[OK] Loaded {key} from settings (api_keys)")
+    except Exception as e:
+        print(f"[!] API key preload: {e}")
+
+# Load keys immediately
+_preload_api_keys()
 
 # Setup logging first
 log_file = Path.home() / "friday-assistant" / "friday.log"
@@ -58,6 +100,44 @@ def cleanup_old_mei_folders():
     except Exception as e:
         pass  # Don't let cleanup errors affect startup
 
+
+def setup_windows_optimizations():
+    """Windows-specific optimizations for better performance"""
+    if sys.platform != 'win32':
+        return
+    
+    try:
+        # Enable high DPI awareness for crisp GUI
+        import ctypes
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Per-monitor DPI awareness
+        except:
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()  # Fallback
+            except:
+                pass
+        
+        # Set process priority to above normal for faster response
+        try:
+            import psutil
+            p = psutil.Process()
+            p.nice(psutil.ABOVE_NORMAL_PRIORITY_CLASS)
+        except:
+            pass
+        
+        # Optimize TCP settings for faster API calls
+        try:
+            import socket
+            socket.setdefaulttimeout(10)  # 10 second timeout
+        except:
+            pass
+        
+    except Exception as e:
+        pass  # Don't let optimization errors affect startup
+
+
+# Apply Windows optimizations
+setup_windows_optimizations()
 
 # Clean up old temp folders on startup
 cleanup_old_mei_folders()
@@ -361,14 +441,14 @@ def initialize_app(loader: LoadingScreen):
     try:
         # Step 1: Load config
         loader.set_status("LOADING CONFIGURATION...", 0.1)
-        time.sleep(0.3)
+        time.sleep(0.1)  # Minimal delay for visual feedback
         
         from config import WAKE_WORD, OPENAI_API_KEY
         logger.info("Config loaded")
         
         # Step 2: Load settings and apply API key
         loader.set_status("LOADING USER SETTINGS...", 0.2)
-        time.sleep(0.2)
+        time.sleep(0.1)
         
         try:
             from settings import load_settings, apply_api_keys, get_ai_name
@@ -390,42 +470,42 @@ def initialize_app(loader: LoadingScreen):
         
         # Step 3: Initialize database
         loader.set_status("CONNECTING DATABASE...", 0.3)
-        time.sleep(0.3)
+        time.sleep(0.1)
         
         from database import db
         logger.info("Database connected")
         
         # Step 4: Load AI module
         loader.set_status("INITIALIZING AI CORE...", 0.45)
-        time.sleep(0.3)
+        time.sleep(0.1)
         
         from ai_brain import brain
         logger.info("AI brain loaded")
         
         # Step 5: Load commands
         loader.set_status("LOADING COMMAND PROTOCOLS...", 0.55)
-        time.sleep(0.2)
+        time.sleep(0.1)
         
         from commands import command_handler
         logger.info("Commands loaded")
         
         # Step 6: Skip speech init here - do it after GUI to avoid segfault
         loader.set_status("PREPARING VOICE INTERFACE...", 0.7)
-        time.sleep(0.3)
+        time.sleep(0.1)
         
         # Just import, don't init yet (PyAudio conflicts with CTK if inited first)
         logger.info("Speech module ready (will init after GUI)")
         
         # Step 7: Prepare GUI
         loader.set_status("PREPARING INTERFACE...", 0.85)
-        time.sleep(0.2)
+        time.sleep(0.1)
         
         from gui import ModernGUI
         logger.info("GUI module loaded")
         
         # Step 8: Final
         loader.set_status("SYSTEM READY", 1.0)
-        time.sleep(0.5)
+        time.sleep(0.2)
         
         # Signal ready
         loader.set_ready()

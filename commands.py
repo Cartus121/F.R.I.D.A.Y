@@ -102,9 +102,25 @@ class CommandHandler:
         self.openai_client = None
         
         # Initialize OpenAI for intent detection
-        if OPENAI_AVAILABLE and OPENAI_API_KEY:
+        self._init_openai()
+    
+    def _init_openai(self):
+        """Initialize or reinitialize OpenAI client"""
+        if self.openai_client:
+            return  # Already initialized
+        
+        # Try getting API key - check env first, then settings
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
             try:
-                self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
+                from settings import get_api_key
+                api_key = get_api_key("OPENAI_API_KEY")
+            except:
+                pass
+        
+        if OPENAI_AVAILABLE and api_key:
+            try:
+                self.openai_client = OpenAI(api_key=api_key)
                 print("[OK] AI Intent Analyzer ready")
             except Exception as e:
                 print(f"[!] AI Intent Analyzer error: {e}")
@@ -118,6 +134,10 @@ class CommandHandler:
         Process user input using AI to understand intent
         Returns: (response_text, should_continue_listening)
         """
+        # Ensure OpenAI is initialized (in case key was added after startup)
+        if not self.openai_client:
+            self._init_openai()
+        
         command = command.strip()
         
         if not command:
@@ -184,26 +204,20 @@ class CommandHandler:
     def _get_smart_response(self, command: str) -> str:
         """
         Single optimized AI call that handles both actions AND conversation.
-        Much faster than separate intent + response calls.
+        SPEED OPTIMIZED: Uses gpt-4o with minimal tokens for fastest response.
         """
         if not self.openai_client:
             # Fallback to brain if no OpenAI in commands
             return brain.get_response(command)
         
         try:
-            # Combined prompt: detect action OR have conversation
-            system_prompt = f"""You are F.R.I.D.A.Y., an AI assistant (like from Iron Man). Be helpful, witty, and concise.
+            # Compact prompt for speed
+            system_prompt = f"""F.R.I.D.A.Y. AI assistant. Be witty, concise. Time: {datetime.now().strftime('%I:%M %p')}, OS: {self.system}
 
-Current time: {datetime.now().strftime('%I:%M %p')}
-Current date: {datetime.now().strftime('%A, %B %d, %Y')}
-OS: {self.system}
+ACTION? Reply JSON: {{"action": "X", "params": {{}}}}
+Actions: open_app, open_website, search_web, set_volume, set_brightness, set_timer, set_alarm, media_control, smart_lights
 
-If the user wants an ACTION, respond with JSON: {{"action": "action_name", "params": {{}}}}
-Actions available: open_app, open_website, search_web, set_volume, set_brightness, set_timer, set_alarm, media_control, smart_lights
-
-If it's a QUESTION or CONVERSATION, just respond naturally (no JSON).
-
-Be concise. Max 2-3 sentences unless explaining something complex."""
+QUESTION? Reply naturally. Max 2-3 sentences."""
 
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o",
@@ -211,7 +225,7 @@ Be concise. Max 2-3 sentences unless explaining something complex."""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": command}
                 ],
-                max_tokens=300,
+                max_tokens=200,  # Reduced for speed
                 temperature=0.7
             )
             
