@@ -57,6 +57,7 @@ class LoadingScreen:
             import customtkinter as ctk
             ctk.set_appearance_mode("dark")
             self.root = ctk.CTk()
+            self.root.configure(corner_radius=20)  # Rounded corners
         except:
             self.root = tk.Tk()
         
@@ -72,6 +73,18 @@ class LoadingScreen:
         
         self.root.geometry(f"{w}x{h}+{x}+{y}")
         self.root.attributes('-topmost', True)
+        
+        # Try to set rounded window on Windows
+        try:
+            import platform
+            if platform.system() == 'Windows':
+                import ctypes
+                hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+                style = ctypes.windll.user32.GetWindowLongW(hwnd, -16)
+                style = style & ~0x00C00000  # Remove WS_CAPTION
+                ctypes.windll.user32.SetWindowLongW(hwnd, -16, style)
+        except:
+            pass
         
         self.canvas = tk.Canvas(self.root, width=w, height=h, bg=self.BG, highlightthickness=0)
         self.canvas.pack()
@@ -221,17 +234,38 @@ class LoadingScreen:
             font=("Consolas", 8), fill=self.DIM)
     
     def _draw_frame(self, w, h):
-        """Draw corner brackets"""
-        m, l = 15, 25
+        """Draw rounded corner accents"""
+        import math
+        radius = 20
         c = self.SECONDARY
-        self.canvas.create_line(m, m, m + l, m, fill=c)
-        self.canvas.create_line(m, m, m, m + l, fill=c)
-        self.canvas.create_line(w - m - l, m, w - m, m, fill=c)
-        self.canvas.create_line(w - m, m, w - m, m + l, fill=c)
-        self.canvas.create_line(m, h - m, m + l, h - m, fill=c)
-        self.canvas.create_line(m, h - m - l, m, h - m, fill=c)
-        self.canvas.create_line(w - m - l, h - m, w - m, h - m, fill=c)
-        self.canvas.create_line(w - m, h - m - l, w - m, h - m, fill=c)
+        
+        # Top-left rounded corner
+        for i in range(90):
+            angle = math.radians(180 + i)
+            x = 20 + radius + int(radius * math.cos(angle))
+            y = 20 + radius + int(radius * math.sin(angle))
+            self.canvas.create_oval(x-1, y-1, x+1, y+1, fill=c, outline=c)
+        
+        # Top-right rounded corner
+        for i in range(90):
+            angle = math.radians(270 + i)
+            x = w - 20 - radius + int(radius * math.cos(angle))
+            y = 20 + radius + int(radius * math.sin(angle))
+            self.canvas.create_oval(x-1, y-1, x+1, y+1, fill=c, outline=c)
+        
+        # Bottom-left rounded corner
+        for i in range(90):
+            angle = math.radians(90 + i)
+            x = 20 + radius + int(radius * math.cos(angle))
+            y = h - 20 - radius + int(radius * math.sin(angle))
+            self.canvas.create_oval(x-1, y-1, x+1, y+1, fill=c, outline=c)
+        
+        # Bottom-right rounded corner
+        for i in range(90):
+            angle = math.radians(i)
+            x = w - 20 - radius + int(radius * math.cos(angle))
+            y = h - 20 - radius + int(radius * math.sin(angle))
+            self.canvas.create_oval(x-1, y-1, x+1, y+1, fill=c, outline=c)
     
     def run(self):
         """Run the loading screen mainloop"""

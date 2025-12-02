@@ -29,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller
+        pip install pyinstaller pywin32-ctypes pefile
         pip install customtkinter pillow
         pip install SpeechRecognition pyaudio pyttsx3 edge-tts
         pip install openai google-generativeai
@@ -37,9 +37,49 @@ jobs:
         pip install duckduckgo-search sqlalchemy
         pip install pygame keyboard
     
+    - name: Create version info file
+      run: |
+        echo VSVersionInfo( > version_info.txt
+        echo   ffi=FixedFileInfo( >> version_info.txt
+        echo     filevers=(1, 0, 0, 0), >> version_info.txt
+        echo     prodvers=(1, 0, 0, 0), >> version_info.txt
+        echo     mask=0x3f, >> version_info.txt
+        echo     flags=0x0, >> version_info.txt
+        echo     OS=0x40004, >> version_info.txt
+        echo     fileType=0x1, >> version_info.txt
+        echo     subtype=0x0, >> version_info.txt
+        echo     date=(0, 0) >> version_info.txt
+        echo   ), >> version_info.txt
+        echo   kids=[ >> version_info.txt
+        echo     StringFileInfo( >> version_info.txt
+        echo       [ >> version_info.txt
+        echo       StringTable( >> version_info.txt
+        echo         u'040904B0', >> version_info.txt
+        echo         [StringStruct(u'CompanyName', u'Cartus121'), >> version_info.txt
+        echo         StringStruct(u'FileDescription', u'F.R.I.D.A.Y. AI Voice Assistant'), >> version_info.txt
+        echo         StringStruct(u'FileVersion', u'1.0.0.0'), >> version_info.txt
+        echo         StringStruct(u'InternalName', u'FRIDAY'), >> version_info.txt
+        echo         StringStruct(u'LegalCopyright', u'Copyright (c) 2025 Cartus121'), >> version_info.txt
+        echo         StringStruct(u'OriginalFilename', u'FRIDAY.exe'), >> version_info.txt
+        echo         StringStruct(u'ProductName', u'F.R.I.D.A.Y.'), >> version_info.txt
+        echo         StringStruct(u'ProductVersion', u'1.0.0.0')]) >> version_info.txt
+        echo       ] >> version_info.txt
+        echo     ), >> version_info.txt
+        echo     VarFileInfo([VarStruct(u'Translation', [1033, 1200])]) >> version_info.txt
+        echo   ] >> version_info.txt
+        echo ) >> version_info.txt
+      shell: cmd
+    
     - name: Build with PyInstaller
       run: |
-        pyinstaller --name="FRIDAY" --onefile --windowed --noconfirm --clean --hidden-import=customtkinter --hidden-import=PIL --hidden-import=PIL._tkinter_finder --hidden-import=speech_recognition --hidden-import=pyttsx3 --hidden-import=edge_tts --hidden-import=openai --hidden-import=requests --hidden-import=psutil --hidden-import=dateutil --hidden-import=pygame --hidden-import=keyboard --hidden-import=settings --hidden-import=translations --hidden-import=splash --hidden-import=wave --hidden-import=struct --hidden-import=json --hidden-import=threading --hidden-import=math --collect-all=customtkinter --collect-all=edge_tts main.py
+        pyinstaller --name="FRIDAY" --onefile --windowed --noconfirm --clean --icon=icon.ico --version-file=version_info.txt --hidden-import=customtkinter --hidden-import=PIL --hidden-import=PIL._tkinter_finder --hidden-import=speech_recognition --hidden-import=pyttsx3 --hidden-import=edge_tts --hidden-import=openai --hidden-import=requests --hidden-import=psutil --hidden-import=dateutil --hidden-import=pygame --hidden-import=keyboard --hidden-import=settings --hidden-import=translations --hidden-import=splash --hidden-import=wave --hidden-import=struct --hidden-import=json --hidden-import=threading --hidden-import=math --collect-all=customtkinter --collect-all=edge_tts main.py
+      shell: cmd
+      continue-on-error: true
+    
+    - name: Build with PyInstaller (no version file)
+      if: failure()
+      run: |
+        pyinstaller --name="FRIDAY" --onefile --windowed --noconfirm --clean --icon=icon.ico --hidden-import=customtkinter --hidden-import=PIL --hidden-import=PIL._tkinter_finder --hidden-import=speech_recognition --hidden-import=pyttsx3 --hidden-import=edge_tts --hidden-import=openai --hidden-import=requests --hidden-import=psutil --hidden-import=dateutil --hidden-import=pygame --hidden-import=keyboard --hidden-import=settings --hidden-import=translations --hidden-import=splash --hidden-import=wave --hidden-import=struct --hidden-import=json --hidden-import=threading --hidden-import=math --collect-all=customtkinter --collect-all=edge_tts main.py
       shell: cmd
     
     - name: Get version tag
