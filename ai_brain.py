@@ -122,14 +122,83 @@ class AIBrain:
             summary_lines = [f"- {s['date']}: {s['summary']}" for s in summaries]
             summary_context = f"\n\nRECENT CONVERSATION CONTEXT:\n" + "\n".join(summary_lines)
         
+        # Add lessons learned from corrections
+        lessons = db.get_lessons_formatted()
+        lessons_context = ""
+        if lessons:
+            lessons_context = f"\n\nLESSONS I'VE LEARNED FROM YOU:\n{lessons}"
+        
         # Combine all
-        full_prompt = base_prompt + location_context + personality_context + memory_context + pref_context + summary_context
+        full_prompt = base_prompt + location_context + personality_context + memory_context + pref_context + summary_context + lessons_context
         
         return full_prompt
+    
+    def _detect_correction(self, user_input: str) -> bool:
+        """Detect if user is correcting F.R.I.D.A.Y."""
+        correction_phrases = [
+            "no that's wrong", "that's not what i", "i didn't ask", "i meant",
+            "no i said", "wrong", "that's not right", "not what i wanted",
+            "you misunderstood", "i was asking about", "no no no", "nope",
+            "that's not it", "don't do that", "stop doing", "never do",
+            "you should", "you shouldn't", "next time", "remember that",
+            "i told you", "i already said", "listen", "pay attention",
+            "not that", "the other", "i was talking about", "when i say",
+            "that means", "understand", "learn this", "remember this"
+        ]
+        user_lower = user_input.lower()
+        return any(phrase in user_lower for phrase in correction_phrases)
+    
+    def _learn_from_correction(self, user_input: str, last_response: str):
+        """Learn from user's correction"""
+        user_lower = user_input.lower()
+        
+        # Extract the lesson
+        lesson = user_input
+        
+        # Detect rule type
+        rule_type = "behavior"
+        if any(word in user_lower for word in ["don't", "stop", "never", "shouldn't"]):
+            rule_type = "dont"
+        elif any(word in user_lower for word in ["should", "always", "when i say", "means"]):
+            rule_type = "should"
+        elif any(word in user_lower for word in ["i meant", "i was asking", "talking about"]):
+            rule_type = "understanding"
+        
+        # Store the correction
+        db.add_correction(
+            user_said=user_input[:200],
+            wrong_response=last_response[:200] if last_response else "",
+            correct_behavior=user_input[:200],
+            lesson=lesson[:300]
+        )
+        
+        # Extract specific rules
+        if "when i say" in user_lower and ("mean" in user_lower or "means" in user_lower):
+            # User is teaching meaning
+            db.add_rule("meaning", user_input, importance=8)
+        elif any(word in user_lower for word in ["don't", "never", "stop"]):
+            # User is saying not to do something
+            db.add_rule("dont", user_input, importance=7)
+        elif any(word in user_lower for word in ["should", "always", "remember"]):
+            # User is saying to do something
+            db.add_rule("should", user_input, importance=7)
+        else:
+            # General correction
+            db.add_rule("general", user_input, importance=5)
+        
+        print(f"[Learning] Learned from correction: {user_input[:50]}...")
     
     def _extract_memories(self, user_input: str, response: str):
         """Extract and store important information from conversation"""
         user_lower = user_input.lower()
+        
+        # Check if this is a correction - learn from it
+        if self._detect_correction(user_input):
+            # Get last response from session history
+            last_response = ""
+            if self.session_history:
+                last_response = self.session_history[-1].get("content", "")
+            self._learn_from_correction(user_input, last_response)
         
         # Extract user's name
         name_patterns = [

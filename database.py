@@ -132,6 +132,26 @@ class DatabaseManager:
                 mood TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+            
+            -- New table: Corrections and lessons learned
+            CREATE TABLE IF NOT EXISTS corrections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_said TEXT NOT NULL,
+                wrong_response TEXT,
+                correct_behavior TEXT NOT NULL,
+                lesson TEXT NOT NULL,
+                times_applied INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- New table: Things F.R.I.D.A.Y. should/shouldn't do
+            CREATE TABLE IF NOT EXISTS learned_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_type TEXT NOT NULL,
+                rule_content TEXT NOT NULL,
+                importance INTEGER DEFAULT 5,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         
         # Migrate existing tables - add missing columns
@@ -684,6 +704,100 @@ class DatabaseManager:
         summaries = [dict(row) for row in cursor.fetchall()]
         conn.close()
         return summaries
+    
+    # =========================================================================
+    # Learning from Corrections
+    # =========================================================================
+    
+    def add_correction(self, user_said: str, wrong_response: str, correct_behavior: str, lesson: str):
+        """Store a correction so F.R.I.D.A.Y. learns from mistakes"""
+        conn = sqlite3.connect(self.local_db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO corrections (user_said, wrong_response, correct_behavior, lesson)
+            VALUES (?, ?, ?, ?)
+        """, (user_said, wrong_response, correct_behavior, lesson))
+        
+        conn.commit()
+        conn.close()
+        print(f"[Learning] Stored correction: {lesson}")
+    
+    def add_rule(self, rule_type: str, rule_content: str, importance: int = 5):
+        """Add a rule about what to do or not do"""
+        conn = sqlite3.connect(self.local_db_path)
+        cursor = conn.cursor()
+        
+        # Check if similar rule exists
+        cursor.execute("""
+            SELECT id FROM learned_rules WHERE rule_content LIKE ?
+        """, (f"%{rule_content[:50]}%",))
+        
+        if cursor.fetchone():
+            # Update importance if exists
+            cursor.execute("""
+                UPDATE learned_rules SET importance = importance + 1
+                WHERE rule_content LIKE ?
+            """, (f"%{rule_content[:50]}%",))
+        else:
+            cursor.execute("""
+                INSERT INTO learned_rules (rule_type, rule_content, importance)
+                VALUES (?, ?, ?)
+            """, (rule_type, rule_content, importance))
+        
+        conn.commit()
+        conn.close()
+        print(f"[Learning] Added rule: {rule_type} - {rule_content[:50]}")
+    
+    def get_corrections(self, limit: int = 20) -> List[Dict]:
+        """Get recent corrections for learning context"""
+        conn = sqlite3.connect(self.local_db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM corrections
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (limit,))
+        
+        corrections = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return corrections
+    
+    def get_rules(self) -> List[Dict]:
+        """Get all learned rules"""
+        conn = sqlite3.connect(self.local_db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM learned_rules
+            ORDER BY importance DESC
+        """)
+        
+        rules = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return rules
+    
+    def get_lessons_formatted(self) -> str:
+        """Get all lessons as formatted string for AI context"""
+        corrections = self.get_corrections(limit=10)
+        rules = self.get_rules()
+        
+        formatted = []
+        
+        if rules:
+            formatted.append("RULES I'VE LEARNED:")
+            for r in rules[:10]:
+                formatted.append(f"- [{r['rule_type'].upper()}] {r['rule_content']}")
+        
+        if corrections:
+            formatted.append("\nPAST MISTAKES TO AVOID:")
+            for c in corrections[:5]:
+                formatted.append(f"- When user said '{c['user_said'][:50]}', lesson: {c['lesson']}")
+        
+        return "\n".join(formatted) if formatted else ""
     
     # =========================================================================
     # External Database Queries
