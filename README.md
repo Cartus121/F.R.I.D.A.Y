@@ -1,154 +1,293 @@
 # 🤖 F.R.I.D.A.Y.
 ### Female Replacement Intelligent Digital Assistant Youth
-*Inspired by Iron Man's AI assistant*
+*Your personal AI assistant inspired by Iron Man*
 
-![F.R.I.D.A.Y.](https://img.shields.io/badge/AI-F.R.I.D.A.Y.-blue?style=for-the-badge)
-![Python](https://img.shields.io/badge/Python-3.10+-green?style=for-the-badge)
-![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-orange?style=for-the-badge)
+<p align="center">
+  <img src="https://img.shields.io/badge/Version-alpha--v28-purple?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/AI-GPT--4o--mini-green?style=for-the-badge" alt="AI">
+  <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge" alt="Python">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-orange?style=for-the-badge" alt="Platform">
+</p>
 
-A sophisticated voice-controlled AI assistant with an Irish female voice (like Kerry Condon from Iron Man), natural language processing, and smart home automation capabilities.
+<p align="center">
+  <b>🎤 Voice Controlled • 🧠 AI Powered • 💡 Smart Home • 🖥️ PC Control</b>
+</p>
+
+---
+
+## 🌟 What is F.R.I.D.A.Y.?
+
+F.R.I.D.A.Y. is a sophisticated AI assistant that understands natural language, controls your PC, manages your smart home, and learns from your conversations. She speaks with an authentic Irish female voice (like Kerry Condon from Iron Man) and has a witty, professional personality.
+
+**No keywords needed** - Just talk naturally. F.R.I.D.A.Y. uses AI to understand what you mean, not just what you say.
 
 ---
 
 ## ✨ Features
 
+### 🧠 AI-Powered Understanding
+- **Natural Language Processing** - No keywords, just talk naturally
+- **Full Sentence Analysis** - AI understands context and intent
+- **GPT-4o-mini Powered** - Advanced language understanding
+- **Mood Detection** - Adapts responses to how you're feeling
+- **Deep Learning** - Learns your interests, communication style, and preferences
+- **Long-term Memory** - Remembers your conversations and preferences
+
 ### 🎤 Voice & Speech
-- **Irish Female Voice** - Authentic F.R.I.D.A.Y. voice using neural TTS
-- **Multiple Wake Words** - "Friday", "Hey Friday", or customizable
-- **Conversation Mode** - Stay awake for follow-up questions
+- **Irish Female Voice** - Authentic F.R.I.D.A.Y. voice (Kerry Condon style)
+- **Text-to-Speech Sync** - Text appears in sync with speech
+- **Multiple Wake Words** - "Friday", "Hey Friday", or custom
+- **Conversation Mode** - Stays awake for follow-up questions
 - **Multi-Language** - English and Russian support
-- **Hotkey Activation** - `Ctrl+Shift+F` to wake instantly
 
-### 🧠 Intelligence
-- **OpenAI GPT-4o** - Powered by advanced AI
-- **FRIDAY Personality** - Professional, witty, like Tony Stark's assistant
-- **Long-term Memory** - Remembers your preferences
-- **Context Awareness** - Understands conversation flow
+### 🖥️ Full PC Control
+| Feature | Examples |
+|---------|----------|
+| **🔊 Volume** | "Turn up the volume", "Set volume to 50%", "Mute" |
+| **⏱️ Timer/Alarm** | "Set timer for 5 minutes", "Wake me up at 7am" |
+| **💡 Brightness** | "Dim the screen", "Brightness to 80%" |
+| **🎵 Media** | "Pause music", "Skip this song", "Play" |
+| **📱 Apps** | "Open Chrome", "Launch VS Code", "Open Downloads" |
+| **🔍 Search** | "Search for Python tutorials", "YouTube cat videos" |
+| **🔒 System** | "Lock my PC", "Sleep", "System status" |
+| **📸 Screenshot** | "Take a screenshot" |
+| **📋 Clipboard** | "Copy this text", "What's in my clipboard?" |
+| **🌐 WiFi/Bluetooth** | "Turn off WiFi", "Toggle Bluetooth" |
 
-### ⏱️ Productivity
-- **Timer & Stopwatch** - "Set timer for 5 minutes"
+### 💡 Smart Home Control
+F.R.I.D.A.Y. can control your smart lights and devices!
+
+| Platform | Support |
+|----------|---------|
+| **Philips Hue** | ✅ Full support |
+| **Home Assistant** | ✅ Universal (any device!) |
+| **LIFX** | ✅ Cloud API |
+| **Tuya / Smart Life** | ✅ Full support |
+| **Fonri** | ✅ Full support (Tuya-based) |
+
+**Examples:**
+- "Turn on the lights"
+- "Dim bedroom to 50%"
+- "Make the lights red"
+- "Turn off living room"
+
+### 📊 Productivity
 - **Calculator** - "What's 15% of 200?"
-- **Unit Conversions** - Temperature, distance, weight
-- **Calendar Management** - Add and view events
-- **Notes & Reminders** - With alarm sounds
-- **Weather Updates** - Current conditions
+- **Unit Conversion** - "50 fahrenheit in celsius"
+- **Weather** - "What's the weather?"
+- **Time/Date** - "What time is it?"
+- **Notes & Reminders** - "Remind me to call mom"
+- **Knowledge Search** - "Who was Einstein?"
 
-### 🖥️ System
-- **System Diagnostics** - CPU, memory, disk status
-- **App Launcher** - "Open Chrome", "Open VS Code"
-- **Web Search** - DuckDuckGo integration
-- **System Tray** - Minimize to tray
-- **Desktop Notifications** - For reminders
+### 🎨 Beautiful UI
+- **Modern Dark Theme** - Purple accent, smooth animations
+- **Message Bubbles** - Chat-style interface
+- **Status Panel** - Shows what F.R.I.D.A.Y. is doing
+- **System Stats** - CPU and RAM usage
+- **Auto-Updates** - Updates automatically when new version is available
 
 ---
 
 ## 🚀 Quick Start
 
-### Windows
-1. Download `FRIDAY.exe` from [Releases](../../releases)
+### Windows (Recommended)
+1. Download `FRIDAY.exe` from [**Releases**](../../releases/latest)
 2. Run the executable
 3. Enter your OpenAI API key when prompted
-4. Say "Friday" or press `Ctrl+Shift+F`
+4. Say "Friday" to wake her up!
 
 ### Linux
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/FRIDAY.git
-cd FRIDAY
+git clone https://github.com/Cartus121/F.R.I.D.A.Y.git
+cd F.R.I.D.A.Y
 
-# Install dependencies
-sudo apt install portaudio19-dev python3-pyaudio ffmpeg -y
+# Install system dependencies
+sudo apt install portaudio19-dev python3-pyaudio ffmpeg mpv -y
+
+# Install Python dependencies
 pip install -r requirements.txt
 
 # Run
 python main.py
 ```
 
----
-
-## 🎯 Voice Commands
-
-| Command | Response |
-|---------|----------|
-| **"Friday"** | "Yes? What do you need?" |
-| **"What time is it?"** | "It's 2:30 PM." |
-| **"Set timer for 10 minutes"** | "Timer set for 10 minutes." |
-| **"What's 50 fahrenheit in celsius?"** | "50° is 10.0° Celsius." |
-| **"Calculate 15% of 200"** | "That's 30." |
-| **"Add event meeting tomorrow at 3pm"** | "Done. 'Meeting' added for..." |
-| **"What's the weather?"** | "Currently 15°C in Istanbul..." |
-| **"System status"** | "Systems nominal. CPU at 12%..." |
-| **"Remind me to call mom in 2 hours"** | "I'll remind you..." |
-| **"Search for Python tutorials"** | "Found: Python Tutorial..." |
-| **"Thank you"** | "Of course. I'll be here." |
-
----
-
-## ⚙️ Settings
-
-Click the ⚙️ button in the app to configure:
-
-- **API Keys** - OpenAI (optional), OpenWeather (optional)
-- **Wake Word** - Custom activation phrase
-- **Language** - English or Russian
-- **Notifications** - Desktop alerts
-
----
-
-## 🔧 Building from Source
-
-### Windows Build
+### Build from Source
 ```bash
+# Install PyInstaller
 pip install pyinstaller
-pyinstaller --name="FRIDAY" --onefile --windowed main.py
-```
 
-### Automated Builds
-Push to `main` branch triggers GitHub Actions to build Windows executable.
+# Run build script
+python build.py
+# OR manually:
+pyinstaller --name=FRIDAY --onefile --windowed --icon=icon.ico main.py
+```
 
 ---
 
-## 📁 File Structure
+## 🎯 Example Commands
+
+Just talk naturally! Here are some examples:
+
+| You Say | F.R.I.D.A.Y. Does |
+|---------|-------------------|
+| "Hey Friday" | Wakes up and listens |
+| "Crank up the volume" | Increases volume |
+| "I need a timer for 10 minutes" | Sets a 10-minute timer |
+| "Open YouTube and search for music" | Opens YouTube with search |
+| "What's the weather like?" | Tells you current weather |
+| "Lock my computer" | Locks your PC |
+| "How are you doing?" | Has a conversation with you |
+| "Turn off the bedroom lights" | Controls smart lights |
+| "Thanks, that's all" | Goes back to sleep |
+
+---
+
+## 💡 Smart Home Setup
+
+### For Fonri / Tuya / Smart Life Devices
+
+1. **Install TinyTuya:**
+   ```bash
+   pip install tinytuya
+   ```
+
+2. **Get device credentials:**
+   - Create account at [iot.tuya.com](https://iot.tuya.com)
+   - Create a Cloud Project
+   - Link your Fonri/Tuya app
+   - Run: `python -m tinytuya wizard`
+
+3. **Save to** `~/friday-assistant/smart_home.json`:
+   ```json
+   {
+     "platform": "tuya",
+     "devices": [
+       {
+         "name": "Living Room Light",
+         "id": "your_device_id",
+         "ip": "192.168.1.xxx",
+         "key": "your_local_key",
+         "version": 3.3
+       }
+     ]
+   }
+   ```
+
+### For Philips Hue
+```json
+{
+  "platform": "hue",
+  "bridge_ip": "192.168.1.xxx",
+  "username": "your_hue_username"
+}
+```
+
+### For Home Assistant (Recommended - controls anything!)
+```json
+{
+  "platform": "home_assistant",
+  "host": "http://your-homeassistant:8123",
+  "token": "your_long_lived_access_token"
+}
+```
+
+---
+
+## ⚙️ Configuration
+
+Click ⚙️ in the app to configure:
+
+| Setting | Description |
+|---------|-------------|
+| **OpenAI API Key** | Required for AI features |
+| **Wake Word** | Custom activation phrase |
+| **Voice** | Choose TTS voice |
+| **Language** | English or Russian |
+| **Weather Location** | Your city for weather |
+
+---
+
+## 📁 Project Structure
 
 ```
-FRIDAY/
-├── main.py           # Entry point
-├── gui.py            # User interface
+F.R.I.D.A.Y/
+├── main.py           # Entry point with loading screen
+├── gui.py            # Modern CustomTkinter interface
 ├── speech.py         # Voice recognition & TTS
-├── commands.py       # Command processing
-├── ai_brain.py       # AI responses
-├── database.py       # Data storage
+├── commands.py       # AI-powered command processing
+├── ai_brain.py       # AI responses, mood detection, learning
+├── database.py       # SQLite data storage
 ├── config.py         # Configuration
-├── settings.py       # User settings
+├── settings.py       # User settings GUI
 ├── translations.py   # Multi-language support
+├── updater.py        # Auto-update system
+├── build.py          # Build script
 └── requirements.txt  # Dependencies
 ```
 
 ---
 
-## 🎤 Voice
+## 🔧 Requirements
 
-F.R.I.D.A.Y. uses the Irish female voice (Kerry Condon style) - the authentic voice from Iron Man.
+- **Python 3.10+**
+- **OpenAI API Key** (get one at [platform.openai.com](https://platform.openai.com))
+- **Microphone** (for voice commands)
+- **Speakers** (for voice output)
+
+### Optional
+- **OpenWeather API Key** - For weather features
+- **Smart Home devices** - For home automation
 
 ---
 
 ## 🐛 Troubleshooting
 
-**No voice output?**
-- Check volume settings
-- Try different voice in settings
+<details>
+<summary><b>No voice output?</b></summary>
 
-**Microphone not working?**
+- Check your volume settings
+- Make sure `mpv` or `ffplay` is installed (Linux)
+- Try a different voice in settings
+</details>
+
+<details>
+<summary><b>Microphone not working?</b></summary>
+
 - Allow microphone permission
-- Check audio device settings
+- Check audio device in system settings
+- On Linux: `systemctl --user restart pipewire`
+</details>
 
-**API errors?**
-- Verify API key in settings
-- Check internet connection
+<details>
+<summary><b>Update failed / _MEI error?</b></summary>
 
-**Hotkey not working?**
-- Run as administrator (Windows)
-- Check for conflicting shortcuts
+1. Close F.R.I.D.A.Y. completely
+2. Go to `C:\Users\YourName\AppData\Local\Temp`
+3. Delete `_MEI*` folders and `friday_update` folder
+4. Re-download from Releases
+</details>
+
+<details>
+<summary><b>Smart lights not working?</b></summary>
+
+- Make sure device is on same WiFi network
+- Check credentials in `smart_home.json`
+- For Tuya devices, run `python -m tinytuya scan` to find devices
+</details>
+
+---
+
+## 📜 Version History
+
+| Version | Highlights |
+|---------|------------|
+| **alpha-v28** | Fixed Windows auto-update issues |
+| **alpha-v27** | Fonri/Tuya smart light support |
+| **alpha-v26** | Faster response, voice-text sync, stop button fix |
+| **alpha-v25** | AI-powered intent analysis, mood detection, PC control |
+| **alpha-v24** | Volume, timer, alarm, brightness controls |
+| **alpha-v23** | New purple theme, better UI |
 
 ---
 
@@ -158,12 +297,19 @@ MIT License - See [LICENSE](LICENSE)
 
 ---
 
-## 🙏 Credits
+## 🙏 Acknowledgments
 
-- Inspired by Marvel's F.R.I.D.A.Y. (Iron Man)
-- Voice: Microsoft Edge TTS (Irish English)
-- AI: OpenAI GPT-4o
+- Inspired by Marvel's F.R.I.D.A.Y. from Iron Man
+- Voice: Microsoft Edge TTS (Irish English - Emily)
+- AI: OpenAI GPT-4o-mini
+- UI: CustomTkinter
 
 ---
 
-*"I'll be here if you need me."* - F.R.I.D.A.Y.
+<p align="center">
+  <i>"I'll be here if you need me."</i> - F.R.I.D.A.Y.
+</p>
+
+<p align="center">
+  Made with ❤️ by <a href="https://github.com/Cartus121">Cartus121</a>
+</p>
