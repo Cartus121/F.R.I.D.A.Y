@@ -63,26 +63,55 @@ class CommandHandler:
     def set_gui_callback(self, callback):
         """Set callback for sending async messages to GUI"""
         self.gui_callback = callback
+    
+    def _clean_command(self, command: str) -> str:
+        """Remove filler words and politeness phrases from command"""
+        filler_words = [
+            "please", "could you", "can you", "would you", "hey", "hi", "hello",
+            "thank you", "thanks", "okay", "ok", "um", "uh", "like", "just",
+            "actually", "basically", "i want you to", "i need you to", "i want to",
+            "i need to", "i would like to", "i'd like to", "kindly", "if you could",
+            "go ahead and", "friday", "hey friday", "yo", "sup", "alright",
+        ]
+        
+        cleaned = command.lower().strip()
+        for filler in filler_words:
+            cleaned = re.sub(r'\b' + re.escape(filler) + r'\b', '', cleaned, flags=re.IGNORECASE)
+        
+        # Clean up extra spaces
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        return cleaned
         
     def process(self, command: str) -> Tuple[str, bool]:
         """
         Process a voice command and return response
         Returns: (response_text, should_continue_listening)
         """
-        command = command.lower().strip()
+        original_command = command.lower().strip()
+        command = self._clean_command(original_command)
         
         if not command:
             return ("I didn't catch that.", True)
         
         # Wake word response - F.R.I.D.A.Y. style
-        if command == "__wake__":
+        if command == "__wake__" or original_command == "__wake__":
             return ("Yes? What do you need?", True)
         
+        # === Sleep Commands - Check ONLY exact phrases (not mixed with other commands) ===
+        sleep_only = ["goodbye", "go to sleep", "that's all", "stop listening", "пока", "до свидания"]
+        thanks_only = ["thank you", "thanks", "спасибо"]
+        
+        if original_command.strip() in sleep_only:
+            return (f"Standing by. Say '{WAKE_WORD}' when you need me.", False)
+        
+        if original_command.strip() in thanks_only:
+            return ("Of course. I'll be here.", False)
+        
         # === Time & Date ===
-        if any(phrase in command for phrase in ["what time", "current time", "tell me the time"]):
+        if any(phrase in command for phrase in ["what time", "current time", "tell me the time", "time is it"]):
             return self._get_time(), True
         
-        if any(phrase in command for phrase in ["what date", "what's the date", "today's date", "what day"]):
+        if any(phrase in command for phrase in ["what date", "the date", "today's date", "what day"]):
             return self._get_date(), True
         
         # === Timer Commands ===
@@ -129,17 +158,17 @@ class CommandHandler:
         if any(phrase in command for phrase in ["system status", "system info", "how's my computer", "pc status", "diagnostics"]):
             return self._get_system_status(), True
         
-        # === Web Search ===
-        if any(phrase in command for phrase in ["search for", "look up", "google", "find information", "search google", "search firefox", "search in"]):
+        # === Web Search (detect "search" keyword) ===
+        if "search" in command:
             return self._web_search(command), True
         
-        # === Open URL / Website ===
-        if any(phrase in command for phrase in ["go to website", "open website", "visit"]):
-            return self._open_website(command), True
-        
-        # === Open Application ===
-        if command.startswith("open "):
+        # === Open Application / File / Folder ===
+        if "open" in command or "launch" in command or "start" in command or "run" in command:
             return self._open_application(command), True
+        
+        # === Open URL / Website ===
+        if any(phrase in command for phrase in ["go to", "visit", "website"]):
+            return self._open_website(command), True
         
         # === Reminders ===
         if any(phrase in command for phrase in ["remind me", "set reminder", "set a reminder"]):
@@ -520,11 +549,14 @@ class CommandHandler:
         import platform
         system = platform.system()
         
-        # Clean up the query
+        # Save original for browser detection
         original_command = command.lower()
-        for phrase in ["search for", "look up", "google", "find information about", "find information on", 
-                       "search google for", "search firefox for", "search in firefox", "search in chrome",
-                       "search in google", "search in browser"]:
+        
+        # Remove search-related keywords
+        for phrase in ["search for", "search", "look up", "google", "find information about", 
+                       "find information on", "search google for", "search firefox for", 
+                       "search in firefox", "search in chrome", "search in google", 
+                       "search in browser", "for", "about"]:
             command = command.lower().replace(phrase, "")
         
         query = command.strip()
@@ -535,17 +567,14 @@ class CommandHandler:
         use_google = "google" in original_command
         use_firefox = "firefox" in original_command
         
-        # Build search URL
-        if use_google:
-            search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-        else:
-            search_url = f"https://duckduckgo.com/?q={query.replace(' ', '+')}"
+        # Build search URL - use Google by default for better results
+        search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
         
         # Open in specific browser if requested
         try:
             if use_firefox:
                 if system == "Windows":
-                    subprocess.Popen(["start", "firefox", search_url], shell=True)
+                    subprocess.Popen(f'start "" firefox "{search_url}"', shell=True)
                 else:
                     subprocess.Popen(["firefox", search_url])
             else:
@@ -574,84 +603,167 @@ class CommandHandler:
     # ==================== APPLICATIONS ====================
     
     def _open_application(self, command: str) -> str:
-        app_name = command.replace("open", "").strip()
+        """Open applications, folders, or files - smart detection"""
+        # Clean up the command
+        for word in ["open", "launch", "start", "run"]:
+            command = command.replace(word, "")
+        app_name = command.strip().lower()
+        
+        if not app_name:
+            return "What should I open?"
         
         import platform
+        import os
         system = platform.system()
         
         if system == "Windows":
+            # Windows app mappings - using shell commands that work
             app_commands = {
                 # Browsers
-                "browser": "start chrome",
-                "chrome": "start chrome",
-                "firefox": "start firefox",
-                "edge": "start msedge",
-                "brave": "start brave",
-                # File locations
-                "files": "explorer",
-                "file manager": "explorer",
+                "browser": "start \"\" chrome",
+                "chrome": "start \"\" chrome",
+                "google chrome": "start \"\" chrome",
+                "firefox": "start \"\" firefox",
+                "edge": "start \"\" msedge",
+                "microsoft edge": "start \"\" msedge",
+                "brave": "start \"\" brave",
+                
+                # File locations - shell folders
+                "files": "explorer .",
+                "file manager": "explorer .",
+                "file explorer": "explorer .",
+                "explorer": "explorer .",
                 "downloads": "explorer shell:Downloads",
+                "download": "explorer shell:Downloads",
                 "download folder": "explorer shell:Downloads",
-                "download files": "explorer shell:Downloads",
                 "documents": "explorer shell:Personal",
                 "my documents": "explorer shell:Personal",
+                "document": "explorer shell:Personal",
                 "pictures": "explorer shell:My Pictures",
                 "my pictures": "explorer shell:My Pictures",
+                "photos": "explorer shell:My Pictures",
                 "music": "explorer shell:My Music",
                 "my music": "explorer shell:My Music",
                 "videos": "explorer shell:My Video",
                 "my videos": "explorer shell:My Video",
                 "desktop": "explorer shell:Desktop",
-                # System
-                "terminal": "start cmd",
-                "command prompt": "start cmd",
-                "powershell": "start powershell",
+                "recycle bin": "explorer shell:RecycleBinFolder",
+                "trash": "explorer shell:RecycleBinFolder",
+                
+                # System tools
+                "terminal": "cmd",
+                "cmd": "cmd",
+                "command prompt": "cmd",
+                "powershell": "powershell",
                 "calculator": "calc",
+                "calc": "calc",
                 "notepad": "notepad",
                 "settings": "start ms-settings:",
                 "control panel": "control",
                 "task manager": "taskmgr",
-                # Dev tools
+                "device manager": "devmgmt.msc",
+                "disk management": "diskmgmt.msc",
+                "services": "services.msc",
+                "registry": "regedit",
+                "paint": "mspaint",
+                "snipping tool": "snippingtool",
+                "screen snip": "ms-screenclip:",
+                
+                # Dev tools  
                 "code": "code",
                 "vs code": "code",
+                "vscode": "code",
                 "visual studio code": "code",
+                "visual studio": "start \"\" devenv",
+                
+                # Microsoft Office
+                "word": "start \"\" winword",
+                "microsoft word": "start \"\" winword",
+                "excel": "start \"\" excel",
+                "microsoft excel": "start \"\" excel",
+                "powerpoint": "start \"\" powerpnt",
+                "outlook": "start \"\" outlook",
+                "onenote": "start \"\" onenote",
+                
                 # Apps
                 "spotify": "start spotify:",
                 "discord": "start discord:",
                 "steam": "start steam:",
                 "teams": "start msteams:",
-                "outlook": "start outlook",
-                "word": "start winword",
-                "excel": "start excel",
-                "powerpoint": "start powerpnt",
+                "microsoft teams": "start msteams:",
+                "zoom": "start \"\" zoom",
+                "slack": "start \"\" slack",
+                "telegram": "start \"\" telegram",
+                "whatsapp": "start \"\" whatsapp",
             }
+            
+            # Find the best match
+            app_cmd = None
+            for key, cmd in app_commands.items():
+                if key in app_name or app_name in key:
+                    app_cmd = cmd
+                    break
+            
+            if not app_cmd:
+                # Try to run it directly
+                app_cmd = f"start \"\" {app_name}"
+            
+            try:
+                subprocess.Popen(app_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return f"Opening {app_name}."
+            except Exception as e:
+                return f"Couldn't open {app_name}. Make sure it's installed."
+                
         else:
+            # Linux app mappings
             app_commands = {
-                "browser": "firefox",
+                "browser": "xdg-open http://",
                 "firefox": "firefox",
                 "chrome": "google-chrome",
-                "files": "nautilus",
-                "file manager": "nautilus",
+                "google chrome": "google-chrome",
+                "files": "xdg-open .",
+                "file manager": "xdg-open .",
+                "nautilus": "nautilus",
+                "downloads": "xdg-open ~/Downloads",
+                "download": "xdg-open ~/Downloads",
+                "documents": "xdg-open ~/Documents",
+                "pictures": "xdg-open ~/Pictures",
+                "music": "xdg-open ~/Music",
+                "videos": "xdg-open ~/Videos",
+                "desktop": "xdg-open ~/Desktop",
                 "terminal": "gnome-terminal",
                 "calculator": "gnome-calculator",
+                "calc": "gnome-calculator",
                 "settings": "gnome-control-center",
                 "text editor": "gedit",
+                "gedit": "gedit",
                 "code": "code",
                 "vs code": "code",
+                "vscode": "code",
                 "spotify": "spotify",
                 "discord": "discord",
             }
-        
-        app_cmd = app_commands.get(app_name.lower(), app_name)
-        
-        try:
-            if system == "Windows" and app_cmd.startswith("start"):
-                subprocess.Popen(app_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:
-                subprocess.Popen([app_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return f"Opening {app_name}."
-        except Exception:
-            return f"Couldn't open {app_name}. Verify it's installed."
+            
+            # Find the best match
+            app_cmd = None
+            for key, cmd in app_commands.items():
+                if key in app_name or app_name in key:
+                    app_cmd = cmd
+                    break
+            
+            if not app_cmd:
+                app_cmd = app_name
+            
+            try:
+                subprocess.Popen(app_cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return f"Opening {app_name}."
+            except Exception as e:
+                # Try with xdg-open as fallback
+                try:
+                    subprocess.Popen(["xdg-open", app_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    return f"Opening {app_name}."
+                except:
+                    return f"Couldn't open {app_name}. Make sure it's installed."
     
     # ==================== REMINDERS ====================
     
