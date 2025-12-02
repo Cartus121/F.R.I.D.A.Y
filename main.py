@@ -29,6 +29,40 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def cleanup_old_mei_folders():
+    """
+    Clean up old PyInstaller _MEI temp folders from previous runs.
+    This prevents the 'failed to remove temporary directory' warning.
+    """
+    if sys.platform != 'win32':
+        return
+    
+    try:
+        import tempfile
+        import shutil
+        temp_dir = tempfile.gettempdir()
+        current_mei = getattr(sys, '_MEIPASS', None)
+        
+        for item in os.listdir(temp_dir):
+            if item.startswith('_MEI'):
+                mei_path = os.path.join(temp_dir, item)
+                # Don't delete current running instance's folder
+                if current_mei and os.path.normpath(mei_path) == os.path.normpath(current_mei):
+                    continue
+                # Try to delete old folders
+                try:
+                    if os.path.isdir(mei_path):
+                        shutil.rmtree(mei_path, ignore_errors=True)
+                except:
+                    pass  # Folder might be in use by another instance
+    except Exception as e:
+        pass  # Don't let cleanup errors affect startup
+
+
+# Clean up old temp folders on startup
+cleanup_old_mei_folders()
+
+
 class LoadingScreen:
     """Loading screen with smooth animations"""
     

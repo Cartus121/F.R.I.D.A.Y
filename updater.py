@@ -23,7 +23,7 @@ RELEASES_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/relea
 TAGS_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/tags"
 
 # Current version - update this when releasing
-CURRENT_VERSION = "alpha-v27"
+CURRENT_VERSION = "alpha-v28"
 
 
 def get_current_version() -> str:
@@ -247,7 +247,7 @@ def install_update(downloaded_file: str) -> bool:
 
 
 def _install_windows(downloaded_file: str) -> bool:
-    """Install update on Windows"""
+    """Install update on Windows - handles PyInstaller _MEI folders"""
     try:
         # Get current executable path
         if getattr(sys, 'frozen', False):
@@ -260,26 +260,104 @@ def _install_windows(downloaded_file: str) -> bool:
             return False
         
         # Create a batch script to replace the exe after we exit
-        update_script = os.path.join(exe_dir, "_update.bat")
+        # Use a location outside the exe directory to avoid issues
+        temp_dir = os.environ.get('TEMP', os.path.expanduser('~'))
+        update_script = os.path.join(temp_dir, "friday_update.bat")
         new_exe_name = os.path.basename(current_exe)
+        new_exe_path = os.path.join(exe_dir, new_exe_name)
         
+        # More robust batch script that:
+        # 1. Waits longer for app to close
+        # 2. Retries deletion
+        # 3. Cleans up _MEI folders
+        # 4. Handles errors gracefully
         batch_content = f'''@echo off
-echo Updating F.R.I.D.A.Y...
+setlocal enabledelayedexpansion
+title F.R.I.D.A.Y. Update
+echo.
+echo ========================================
+echo   F.R.I.D.A.Y. Auto-Update
+echo ========================================
+echo.
+echo Waiting for application to close...
+timeout /t 3 /nobreak >nul
+
+REM Wait for the old process to fully exit (retry loop)
+set retries=0
+:waitloop
+tasklist /FI "IMAGENAME eq {new_exe_name}" 2>NUL | find /I /N "{new_exe_name}">NUL
+if "%ERRORLEVEL%"=="0" (
+    set /a retries+=1
+    if !retries! GEQ 15 (
+        echo Warning: Old process still running, forcing update...
+        goto :continue_update
+    )
+    echo Waiting for process to close... attempt !retries!/15
+    timeout /t 1 /nobreak >nul
+    goto :waitloop
+)
+
+:continue_update
+echo.
+echo Removing old version...
+
+REM Try to delete the old exe multiple times
+set del_retries=0
+:del_loop
+del /f /q "{current_exe}" >nul 2>&1
+if exist "{current_exe}" (
+    set /a del_retries+=1
+    if !del_retries! GEQ 10 (
+        echo Warning: Could not delete old exe, will overwrite...
+        goto :copy_new
+    )
+    timeout /t 1 /nobreak >nul
+    goto :del_loop
+)
+
+:copy_new
+echo Installing new version...
+copy /y "{downloaded_file}" "{new_exe_path}" >nul
+if errorlevel 1 (
+    echo ERROR: Failed to copy new version!
+    echo Please manually copy:
+    echo   From: {downloaded_file}
+    echo   To: {new_exe_path}
+    pause
+    exit /b 1
+)
+
+echo Cleaning up...
+del /f /q "{downloaded_file}" >nul 2>&1
+
+REM Clean up old PyInstaller temp folders (older than current)
+for /d %%i in ("%TEMP%\\_MEI*") do (
+    rd /s /q "%%i" >nul 2>&1
+)
+
+REM Clean up friday_update folder
+rd /s /q "%TEMP%\\friday_update" >nul 2>&1
+
+echo.
+echo ========================================
+echo   Update complete! Starting F.R.I.D.A.Y...
+echo ========================================
 timeout /t 2 /nobreak >nul
-del "{current_exe}" >nul 2>&1
-copy "{downloaded_file}" "{os.path.join(exe_dir, new_exe_name)}" >nul
-del "{downloaded_file}" >nul 2>&1
-start "" "{os.path.join(exe_dir, new_exe_name)}"
-del "%~f0" >nul 2>&1
+
+REM Start the new version
+start "" "{new_exe_path}"
+
+REM Delete this script
+(goto) 2>nul & del /f /q "%~f0"
 '''
         
         with open(update_script, 'w') as f:
             f.write(batch_content)
         
-        # Run the update script and exit
+        # Run the update script - CREATE_NEW_CONSOLE so user can see progress
         subprocess.Popen(
             ['cmd', '/c', update_script],
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=subprocess.CREATE_NEW_CONSOLE,
             close_fds=True
         )
         
