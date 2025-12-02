@@ -97,9 +97,11 @@ def cleanup_old_mei_folders():
     try:
         import tempfile
         import shutil
+        import time
         temp_dir = tempfile.gettempdir()
         current_mei = getattr(sys, '_MEIPASS', None)
         
+        cleaned = 0
         for item in os.listdir(temp_dir):
             if item.startswith('_MEI'):
                 mei_path = os.path.join(temp_dir, item)
@@ -109,9 +111,20 @@ def cleanup_old_mei_folders():
                 # Try to delete old folders
                 try:
                     if os.path.isdir(mei_path):
+                        # Check if folder is old (more than 1 minute)
+                        try:
+                            age = time.time() - os.path.getmtime(mei_path)
+                            if age < 60:  # Skip recently created folders
+                                continue
+                        except:
+                            pass
                         shutil.rmtree(mei_path, ignore_errors=True)
+                        cleaned += 1
                 except:
                     pass  # Folder might be in use by another instance
+        
+        if cleaned > 0:
+            print(f"[OK] Cleaned {cleaned} old temp folders")
     except Exception as e:
         pass  # Don't let cleanup errors affect startup
 

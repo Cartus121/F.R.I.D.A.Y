@@ -500,18 +500,33 @@ def show_settings_dialog(parent=None) -> bool:
 
 
 def restart_app():
-    """Restart F.R.I.D.A.Y. application"""
+    """Restart F.R.I.D.A.Y. application - Windows safe"""
     import sys
     import subprocess
+    import time
     
     try:
         if getattr(sys, 'frozen', False):
             # Running as compiled exe (PyInstaller)
             exe_path = sys.executable
+            
             if sys.platform == 'win32':
-                # Windows: use start command to launch new instance
-                subprocess.Popen(['cmd', '/c', 'start', '', exe_path], 
-                               creationflags=subprocess.CREATE_NO_WINDOW)
+                # Windows: Create a batch script that waits then launches
+                # This avoids MEI folder conflicts
+                import tempfile
+                batch_content = f'''@echo off
+ping 127.0.0.1 -n 3 > nul
+start "" "{exe_path}"
+del "%~f0"
+'''
+                batch_path = os.path.join(tempfile.gettempdir(), 'friday_restart.bat')
+                with open(batch_path, 'w') as f:
+                    f.write(batch_content)
+                
+                # Run the batch file and exit immediately
+                subprocess.Popen(['cmd', '/c', batch_path], 
+                               creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                               close_fds=True)
             else:
                 # Linux/Mac
                 subprocess.Popen([exe_path], start_new_session=True)
@@ -519,16 +534,37 @@ def restart_app():
             # Running as script
             python = sys.executable
             script = sys.argv[0]
+            
             if sys.platform == 'win32':
-                subprocess.Popen([python, script], 
-                               creationflags=subprocess.CREATE_NO_WINDOW)
+                # For scripts on Windows, add delay too
+                import tempfile
+                batch_content = f'''@echo off
+ping 127.0.0.1 -n 2 > nul
+start "" "{python}" "{script}"
+del "%~f0"
+'''
+                batch_path = os.path.join(tempfile.gettempdir(), 'friday_restart.bat')
+                with open(batch_path, 'w') as f:
+                    f.write(batch_content)
+                
+                subprocess.Popen(['cmd', '/c', batch_path],
+                               creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                               close_fds=True)
             else:
                 subprocess.Popen([python, script], start_new_session=True)
+        
+        # Give batch script time to start
+        time.sleep(0.5)
         
         # Exit current instance
         os._exit(0)
     except Exception as e:
         print(f"Restart failed: {e}")
+        # Try simple exit if restart fails
+        try:
+            os._exit(0)
+        except:
+            sys.exit(0)
 
 
 def needs_setup() -> bool:
