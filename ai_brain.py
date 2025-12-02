@@ -120,7 +120,7 @@ class AIBrain:
         
         try:
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "Analyze the user's mood from their message. Respond with ONE word only: happy, sad, frustrated, anxious, excited, tired, neutral, angry, stressed, curious, playful, or bored."},
                     {"role": "user", "content": user_input}
@@ -187,7 +187,7 @@ Extract and return JSON with these fields (only include fields with actual data 
 Only include fields where you found actual data. Respond with JSON only."""
 
             result = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You analyze conversations to understand users. Respond with JSON only."},
                     {"role": "user", "content": analysis_prompt}
@@ -553,7 +553,7 @@ Only include fields where you found actual data. Respond with JSON only."""
         messages.append({"role": "user", "content": user_input})
         
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",  # Fastest model
+            model="gpt-4o",  # Smart and fast
             messages=messages,
             max_tokens=250,  # Shorter responses = faster
             temperature=0.7

@@ -129,7 +129,7 @@ for directory in [BASE_DIR, DATA_DIR, LOGS_DIR, NOTES_DIR]:
 # 🤖 AI PERSONALITY - F.R.I.D.A.Y.
 # =============================================================================
 
-AI_MODEL = "gpt-4o-mini"
+AI_MODEL = "gpt-4o"
 
 SYSTEM_PROMPT = """You are F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth), a personal AI companion inspired by Tony Stark's assistant.
 

@@ -28,7 +28,6 @@ F.R.I.D.A.Y. is a sophisticated AI assistant that understands natural language, 
 ### 🧠 AI-Powered Understanding
 - **Natural Language Processing** - No keywords, just talk naturally
 - **Full Sentence Analysis** - AI understands context and intent
-- **GPT-4o-mini Powered** - Advanced language understanding
 - **Mood Detection** - Adapts responses to how you're feeling
 - **Deep Learning** - Learns your interests, communication style, and preferences
 - **Long-term Memory** - Remembers your conversations and preferences
@@ -301,7 +300,7 @@ MIT License - See [LICENSE](LICENSE)
 
 - Inspired by Marvel's F.R.I.D.A.Y. from Iron Man
 - Voice: Microsoft Edge TTS (Irish English - Emily)
-- AI: OpenAI GPT-4o-mini
+- AI: OpenAI GPT-4o
 - UI: CustomTkinter
 
 ---

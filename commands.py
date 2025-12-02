@@ -206,7 +206,7 @@ If it's a QUESTION or CONVERSATION, just respond naturally (no JSON).
 Be concise. Max 2-3 sentences unless explaining something complex."""
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": command}
@@ -319,7 +319,7 @@ IMPORTANT:
 Respond with ONLY valid JSON, no explanation."""
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are an intent classifier. Respond with JSON only."},
                     {"role": "user", "content": analysis_prompt}
