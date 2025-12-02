@@ -188,13 +188,13 @@ def show_settings_dialog(parent=None) -> bool:
     
     dialog = ctk.CTkToplevel(parent) if parent else ctk.CTk()
     dialog.title(f"{ai_name} Settings")
-    dialog.geometry("520x620")
+    dialog.geometry("520x700")
     dialog.resizable(False, False)
     
     dialog.update_idletasks()
     x = (dialog.winfo_screenwidth() - 520) // 2
-    y = (dialog.winfo_screenheight() - 620) // 2
-    dialog.geometry(f"520x620+{x}+{y}")
+    y = (dialog.winfo_screenheight() - 700) // 2
+    dialog.geometry(f"520x700+{x}+{y}")
     
     # Title
     title = ctk.CTkLabel(
@@ -275,6 +275,60 @@ def show_settings_dialog(parent=None) -> bool:
     notif_var = ctk.BooleanVar(value=settings.get("notifications_enabled", True))
     notif_cb = ctk.CTkCheckBox(behavior_frame, text="Enable desktop notifications", variable=notif_var)
     notif_cb.pack(anchor="w", padx=10, pady=(5, 10))
+    
+    # === Data Section ===
+    data_section = ctk.CTkLabel(scroll_frame, text="🗑️ Data Management", font=ctk.CTkFont(size=16, weight="bold"))
+    data_section.pack(anchor="w", pady=(15, 5))
+    
+    data_frame = ctk.CTkFrame(scroll_frame)
+    data_frame.pack(fill="x", pady=5)
+    
+    ctk.CTkLabel(data_frame, text="Clear all saved data and start fresh:", font=ctk.CTkFont(size=12)).pack(anchor="w", padx=10, pady=(8, 5))
+    
+    def reset_all_data():
+        """Delete all user data for clean start"""
+        import shutil
+        from tkinter import messagebox
+        
+        confirm = messagebox.askyesno(
+            "Reset All Data",
+            "This will delete:\n\n• All conversations\n• All settings\n• All cached data\n\nAre you sure? This cannot be undone.",
+            icon='warning'
+        )
+        
+        if confirm:
+            try:
+                # Delete settings directory
+                if SETTINGS_DIR.exists():
+                    shutil.rmtree(SETTINGS_DIR)
+                    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+                
+                # Delete temp audio files
+                import tempfile
+                temp_friday = Path(tempfile.gettempdir()) / "friday_audio"
+                if temp_friday.exists():
+                    shutil.rmtree(temp_friday)
+                
+                messagebox.showinfo("Reset Complete", "All data cleared. Please restart F.R.I.D.A.Y.")
+                dialog.destroy()
+                
+                # Exit the app
+                import sys
+                sys.exit(0)
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to reset: {e}")
+    
+    reset_btn = ctk.CTkButton(
+        data_frame, 
+        text="🔄 Reset All Data", 
+        command=reset_all_data,
+        width=200, 
+        height=35,
+        fg_color="#dc2626",
+        hover_color="#b91c1c"
+    )
+    reset_btn.pack(anchor="w", padx=10, pady=(5, 10))
     
     # Error label
     error_label = ctk.CTkLabel(dialog, text="", text_color="red")

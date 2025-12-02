@@ -427,8 +427,8 @@ def setup_hotkey(callback):
 
 
 def main():
-    """Main entry point"""
-    global loading_screen, gui, recognizer, tts, is_listening
+    """Main entry point - direct to GUI"""
+    global gui, recognizer, tts, is_listening
     
     # Get AI name for banner
     try:
@@ -446,32 +446,33 @@ def main():
     
     logger.info("Starting F.R.I.D.A.Y....")
     
-    # Create loading screen
-    loading_screen = LoadingScreen()
-    loading_screen.create()
-    
-    # Start initialization in background thread
-    init_thread = threading.Thread(target=initialize_app, args=(loading_screen,), daemon=True)
-    init_thread.start()
-    
-    # Run loading screen (blocks until ready)
-    loading_screen.run()
-    
-    # Clean up loading screen
+    # Initialize components directly
+    print("[*] Loading configuration...")
     try:
-        if loading_screen.root:
-            loading_screen.root.destroy()
-    except:
-        pass
+        from settings import load_settings, get_api_key, get_ai_name
+        settings = load_settings()
+        
+        api_key = get_api_key("OPENAI_API_KEY")
+        if api_key:
+            os.environ["OPENAI_API_KEY"] = api_key
+    except Exception as e:
+        logger.error(f"Settings error: {e}")
     
-    # Now start the main GUI
+    print("[*] Connecting database...")
+    from database import db
+    
+    print("[*] Loading AI...")
+    from ai_brain import brain
+    
+    print("[*] Loading commands...")
+    from commands import command_handler
+    
+    print("[*] Starting GUI...")
     logger.info("Starting main interface...")
     
     try:
         from config import WAKE_WORD
-        from commands import command_handler
         from gui import ModernGUI
-        from database import db
         
         def process_voice_command(command: str):
             """Process voice command"""
