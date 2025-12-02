@@ -2,7 +2,7 @@
 """
 F.R.I.D.A.Y. - Female Replacement Intelligent Digital Assistant Youth
 Main entry point with integrated loading screen
-stable_v1.0.1 - Optimized for Windows
+stable_v1.0.5 - Optimized for Windows & Linux
 """
 
 import logging
@@ -14,6 +14,20 @@ import tkinter as tk
 import math
 from pathlib import Path
 from queue import Queue
+
+# =============================================================================
+# WINDOWS COMPATIBILITY: Set environment before any imports
+# =============================================================================
+if sys.platform == 'win32':
+    # Fix for Windows console encoding
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except:
+        pass
+    
+    # Disable GPU for stability (prevents crashes on some systems)
+    os.environ.setdefault('TF_ENABLE_ONEDNN_OPTS', '0')
 
 # =============================================================================
 # CRITICAL: Load API keys BEFORE any other imports
@@ -64,7 +78,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(log_file),
+        logging.FileHandler(log_file, encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -75,6 +89,7 @@ def cleanup_old_mei_folders():
     """
     Clean up old PyInstaller _MEI temp folders from previous runs.
     This prevents the 'failed to remove temporary directory' warning.
+    Windows only.
     """
     if sys.platform != 'win32':
         return

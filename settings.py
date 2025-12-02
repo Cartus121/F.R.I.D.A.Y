@@ -32,6 +32,7 @@ DEFAULT_SETTINGS = {
     "openai_api_key": "",
     "google_api_key": "",
     "openweather_api_key": "",
+    "ai_provider": "auto",  # "auto", "gemini", or "openai"
     "language": "en",
     "voice": "F.R.I.D.A.Y. (Irish Female)",
     "ai_name": "F.R.I.D.A.Y.",
@@ -218,23 +219,38 @@ def show_settings_dialog(parent=None) -> bool:
     scroll_frame.pack(fill="both", expand=True, padx=20, pady=5)
     
     # === API Keys Section ===
-    api_section = ctk.CTkLabel(scroll_frame, text="🔑 API Keys", font=ctk.CTkFont(size=16, weight="bold"))
+    api_section = ctk.CTkLabel(scroll_frame, text="🔑 API Keys & AI Provider", font=ctk.CTkFont(size=16, weight="bold"))
     api_section.pack(anchor="w", pady=(10, 5))
     
     # OpenAI API Key
     api_frame = ctk.CTkFrame(scroll_frame)
     api_frame.pack(fill="x", pady=5)
     
+    # AI Provider Selection
+    ctk.CTkLabel(api_frame, text="AI Provider:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
+    ctk.CTkLabel(api_frame, text="Select which AI to use (changing requires restart)", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=10, pady=(0, 3))
+    
+    provider_map = {"auto": "Auto (Gemini → OpenAI)", "gemini": "Google Gemini (FREE)", "openai": "OpenAI GPT-4o (Paid)"}
+    current_provider = settings.get("ai_provider", "auto")
+    provider_var = ctk.StringVar(value=provider_map.get(current_provider, "Auto (Gemini → OpenAI)"))
+    provider_menu = ctk.CTkOptionMenu(
+        api_frame,
+        values=["Auto (Gemini → OpenAI)", "Google Gemini (FREE)", "OpenAI GPT-4o (Paid)"],
+        variable=provider_var,
+        width=250
+    )
+    provider_menu.pack(anchor="w", padx=10, pady=(0, 10))
+    
     ctk.CTkLabel(api_frame, text="OpenAI API Key:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
-    ctk.CTkLabel(api_frame, text="Optional - backup AI provider (paid)", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=10, pady=(0, 3))
+    ctk.CTkLabel(api_frame, text="Get key at platform.openai.com (paid)", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=10, pady=(0, 3))
     api_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="sk-proj-...", show="*")
     api_entry.pack(padx=10, pady=(0, 8))
     if settings.get("openai_api_key"):
         api_entry.insert(0, settings["openai_api_key"])
     
     # Google Gemini API Key (FREE!)
-    ctk.CTkLabel(api_frame, text="Google Gemini API Key (FREE):", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
-    ctk.CTkLabel(api_frame, text="Get FREE key at ai.google.dev - Recommended!", font=ctk.CTkFont(size=10), text_color="#22c55e").pack(anchor="w", padx=10, pady=(0, 3))
+    ctk.CTkLabel(api_frame, text="Google Gemini API Key:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
+    ctk.CTkLabel(api_frame, text="Get FREE key at ai.google.dev", font=ctk.CTkFont(size=10), text_color="#22c55e").pack(anchor="w", padx=10, pady=(0, 3))
     gemini_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="AIza...", show="*")
     gemini_entry.pack(padx=10, pady=(0, 8))
     if settings.get("google_api_key"):
@@ -382,6 +398,9 @@ def show_settings_dialog(parent=None) -> bool:
     error_label = ctk.CTkLabel(dialog, text="", text_color="red")
     error_label.pack()
     
+    # Track if provider changed (needs restart)
+    original_provider = settings.get("ai_provider", "auto")
+    
     def save_and_close():
         api_key = api_entry.get().strip()
         gemini_key = gemini_entry.get().strip()
@@ -395,9 +414,23 @@ def show_settings_dialog(parent=None) -> bool:
             error_label.configure(text="⚠️ Invalid Gemini key format (should start with 'AIza')")
             return
         
-        # Need at least one AI key
-        if not api_key and not gemini_key:
-            error_label.configure(text="⚠️ Please add at least one API key (Gemini is FREE!)")
+        # Get selected provider
+        provider_reverse = {
+            "Auto (Gemini → OpenAI)": "auto",
+            "Google Gemini (FREE)": "gemini", 
+            "OpenAI GPT-4o (Paid)": "openai"
+        }
+        new_provider = provider_reverse.get(provider_var.get(), "auto")
+        
+        # Check if selected provider has valid key
+        if new_provider == "gemini" and not gemini_key:
+            error_label.configure(text="⚠️ Gemini selected but no Gemini API key provided")
+            return
+        if new_provider == "openai" and not api_key:
+            error_label.configure(text="⚠️ OpenAI selected but no OpenAI API key provided")
+            return
+        if new_provider == "auto" and not api_key and not gemini_key:
+            error_label.configure(text="⚠️ Please add at least one API key")
             return
         
         try:
@@ -410,6 +443,7 @@ def show_settings_dialog(parent=None) -> bool:
         settings["openai_api_key"] = api_key
         settings["google_api_key"] = gemini_key
         settings["openweather_api_key"] = weather_entry.get().strip()
+        settings["ai_provider"] = new_provider
         settings["voice"] = "F.R.I.D.A.Y. (Irish Female)"
         settings["ai_name"] = "F.R.I.D.A.Y."
         settings["wake_word"] = wake_entry.get().strip().lower() or "friday"
@@ -426,6 +460,20 @@ def show_settings_dialog(parent=None) -> bool:
         
         save_settings(settings)
         result["saved"] = True
+        
+        # Check if provider changed - needs restart
+        if new_provider != original_provider:
+            from tkinter import messagebox
+            restart = messagebox.askyesno(
+                "Restart Required",
+                f"AI provider changed to {provider_var.get()}.\n\nRestart F.R.I.D.A.Y. now to apply changes?",
+                icon='question'
+            )
+            if restart:
+                dialog.destroy()
+                restart_app()
+                return
+        
         dialog.destroy()
     
     def cancel():
@@ -449,6 +497,38 @@ def show_settings_dialog(parent=None) -> bool:
         dialog.mainloop()
     
     return result["saved"]
+
+
+def restart_app():
+    """Restart F.R.I.D.A.Y. application"""
+    import sys
+    import subprocess
+    
+    try:
+        if getattr(sys, 'frozen', False):
+            # Running as compiled exe (PyInstaller)
+            exe_path = sys.executable
+            if sys.platform == 'win32':
+                # Windows: use start command to launch new instance
+                subprocess.Popen(['cmd', '/c', 'start', '', exe_path], 
+                               creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                # Linux/Mac
+                subprocess.Popen([exe_path], start_new_session=True)
+        else:
+            # Running as script
+            python = sys.executable
+            script = sys.argv[0]
+            if sys.platform == 'win32':
+                subprocess.Popen([python, script], 
+                               creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                subprocess.Popen([python, script], start_new_session=True)
+        
+        # Exit current instance
+        os._exit(0)
+    except Exception as e:
+        print(f"Restart failed: {e}")
 
 
 def needs_setup() -> bool:

@@ -99,6 +99,16 @@ except Exception as e:
     print(f"[!] Gemini error: {e}")
 
 
+def get_preferred_provider():
+    """Get user's preferred AI provider from settings"""
+    try:
+        from settings import load_settings
+        settings = load_settings()
+        return settings.get("ai_provider", "auto")
+    except:
+        return "auto"
+
+
 class AIBrain:
     """F.R.I.D.A.Y.'s AI brain - handles conversations with memory and personality"""
     
@@ -120,17 +130,40 @@ class AIBrain:
         
         self._load_persistent_memory()
         
-        # Determine which AI to use - PREFER GEMINI (FREE!)
-        if GEMINI_AVAILABLE:
+        # Determine which AI to use based on settings
+        preferred = get_preferred_provider()
+        
+        if preferred == "gemini" and GEMINI_AVAILABLE:
             self.ai_provider = "gemini"
-            print("Using Google Gemini Pro (FREE)")
-        elif OPENAI_AVAILABLE:
+            print("Using Google Gemini Pro (selected)")
+        elif preferred == "openai" and OPENAI_AVAILABLE:
             self.ai_provider = "openai"
             self.openai_client = openai_client
-            print("Using OpenAI for AI responses")
+            print("Using OpenAI GPT-4o (selected)")
+        elif preferred == "auto":
+            # Auto mode: prefer Gemini (free), fallback to OpenAI
+            if GEMINI_AVAILABLE:
+                self.ai_provider = "gemini"
+                print("Using Google Gemini Pro (FREE)")
+            elif OPENAI_AVAILABLE:
+                self.ai_provider = "openai"
+                self.openai_client = openai_client
+                print("Using OpenAI GPT-4o (fallback)")
+            else:
+                self.ai_provider = "local"
+                print("Using local responses (no AI API configured)")
         else:
-            self.ai_provider = "local"
-            print("Using local responses (no AI API configured)")
+            # Fallback if preferred not available
+            if GEMINI_AVAILABLE:
+                self.ai_provider = "gemini"
+                print(f"Using Gemini (preferred '{preferred}' not available)")
+            elif OPENAI_AVAILABLE:
+                self.ai_provider = "openai"
+                self.openai_client = openai_client
+                print(f"Using OpenAI (preferred '{preferred}' not available)")
+            else:
+                self.ai_provider = "local"
+                print("Using local responses (no AI API configured)")
         
         # Print memory stats
         total_convos = db.get_conversation_count()

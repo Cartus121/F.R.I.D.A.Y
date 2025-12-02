@@ -103,49 +103,78 @@ class CommandHandler:
         self.gemini_model = None
         self.ai_provider = None  # "gemini", "openai", or None
         
-        # Initialize AI for intent detection - PREFER GEMINI (FREE)
+        # Initialize AI for intent detection based on settings
         self._init_ai()
     
+    def _get_preferred_provider(self):
+        """Get user's preferred AI provider from settings"""
+        try:
+            from settings import load_settings
+            settings = load_settings()
+            return settings.get("ai_provider", "auto")
+        except:
+            return "auto"
+    
     def _init_ai(self):
-        """Initialize AI client - prefer Gemini (free) over OpenAI"""
-        # Try Gemini first (FREE!)
-        if not self.gemini_model:
-            try:
-                import google.generativeai as genai
-                gemini_key = os.environ.get("GOOGLE_API_KEY", "")
-                if not gemini_key:
-                    try:
-                        from settings import get_api_key
-                        gemini_key = get_api_key("GOOGLE_API_KEY")
-                    except:
-                        pass
-                
-                if gemini_key:
-                    genai.configure(api_key=gemini_key)
-                    self.gemini_model = genai.GenerativeModel('gemini-pro')
-                    self.ai_provider = "gemini"
-                    print("[OK] AI Intent Analyzer ready (Gemini Pro - FREE)")
-                    return
-            except Exception as e:
-                print(f"[!] Gemini init error: {e}")
+        """Initialize AI client based on user preference"""
+        preferred = self._get_preferred_provider()
         
-        # Fallback to OpenAI
-        if not self.openai_client:
-            api_key = os.environ.get("OPENAI_API_KEY", "")
-            if not api_key:
-                try:
-                    from settings import get_api_key
-                    api_key = get_api_key("OPENAI_API_KEY")
-                except:
-                    pass
-            
-            if OPENAI_AVAILABLE and api_key:
-                try:
-                    self.openai_client = OpenAI(api_key=api_key)
-                    self.ai_provider = "openai"
-                    print("[OK] AI Intent Analyzer ready (OpenAI)")
-                except Exception as e:
-                    print(f"[!] OpenAI init error: {e}")
+        # Get API keys
+        gemini_key = os.environ.get("GOOGLE_API_KEY", "")
+        openai_key = os.environ.get("OPENAI_API_KEY", "")
+        
+        if not gemini_key:
+            try:
+                from settings import get_api_key
+                gemini_key = get_api_key("GOOGLE_API_KEY")
+            except:
+                pass
+        
+        if not openai_key:
+            try:
+                from settings import get_api_key
+                openai_key = get_api_key("OPENAI_API_KEY")
+            except:
+                pass
+        
+        # Initialize based on preference
+        if preferred == "gemini" and gemini_key:
+            self._init_gemini(gemini_key)
+        elif preferred == "openai" and openai_key:
+            self._init_openai(openai_key)
+        elif preferred == "auto":
+            # Auto: try Gemini first, then OpenAI
+            if gemini_key:
+                self._init_gemini(gemini_key)
+            elif openai_key:
+                self._init_openai(openai_key)
+        else:
+            # Fallback
+            if gemini_key:
+                self._init_gemini(gemini_key)
+            elif openai_key:
+                self._init_openai(openai_key)
+    
+    def _init_gemini(self, api_key):
+        """Initialize Gemini"""
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            self.gemini_model = genai.GenerativeModel('gemini-pro')
+            self.ai_provider = "gemini"
+            print("[OK] AI Intent Analyzer ready (Gemini Pro)")
+        except Exception as e:
+            print(f"[!] Gemini init error: {e}")
+    
+    def _init_openai(self, api_key):
+        """Initialize OpenAI"""
+        try:
+            if OPENAI_AVAILABLE:
+                self.openai_client = OpenAI(api_key=api_key)
+                self.ai_provider = "openai"
+                print("[OK] AI Intent Analyzer ready (OpenAI GPT-4o)")
+        except Exception as e:
+            print(f"[!] OpenAI init error: {e}")
     
     def set_gui_callback(self, callback):
         """Set callback for sending async messages to GUI"""
