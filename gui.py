@@ -343,13 +343,14 @@ class ModernGUI:
         return msg_label
     
     def _type_words(self, label, text: str, words_per_minute: int = 750):
-        """Display text word by word - synced with speech"""
+        """Display text word by word - synced with speech (about 180 WPM)"""
         self.stop_typing = False  # Reset stop flag
         words = text.split()
         current_text = ""
         
-        # Display ~4 words per second (matches speech rate)
-        ms_per_word = 60
+        # Speech is ~180 words per minute = 3 words per second = 333ms per word
+        # But we want text slightly ahead so it feels synced
+        ms_per_word = 250  # ~4 words per second, slightly ahead of speech
         
         def show_word(index):
             nonlocal current_text

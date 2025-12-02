@@ -509,13 +509,17 @@ def main():
                     recognizer.sleep()
         
         def process_text_command(command: str) -> str:
-            """Process text command - synchronized text and speech"""
+            """Process text command - AUDIO FIRST, text syncs with speech"""
             gui.set_action(f"Processing: {command[:30]}...", "⚡")
             response, _ = command_handler.process(command)
             gui.set_action("Speaking...", "🗣️")
-            # Speak in background - text typing is synced in GUI
+            
+            # Start speaking IMMEDIATELY in background
             if tts:
                 threading.Thread(target=tts.speak, args=(response,), daemon=True).start()
+            
+            # Return response - GUI will type it word-by-word
+            # The typing speed is synced to match speech
             return response
         
         def stop_speaking():
