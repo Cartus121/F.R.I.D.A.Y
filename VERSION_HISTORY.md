@@ -44,8 +44,16 @@
 - Speech text synchronization
 - Removed conversation history for speed
 
-### alpha-v8 (Current)
+### alpha-v8
 - Ultra-fast text display (80ms/word)
 - Instant responses
 - Removed API keys from repo
 - GitHub Actions workflow for releases
+
+### alpha-v9 (Current)
+- Arc reactor style application icon
+- Rounded loading screen corners
+- Smooth corner accents (no sharp brackets)
+- Windows publisher metadata: Cartus121
+- Version info embedded in Windows exe
+- Modern aesthetic improvements
