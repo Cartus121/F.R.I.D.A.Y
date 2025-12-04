@@ -2,7 +2,7 @@
 Settings Manager for F.R.I.D.A.Y.
 Handles user settings, API keys, voice selection, and preferences
 
-stable_v1.1.0 - Gemini Only Edition (FREE!)
+stable_v1.2.0 - Multi-AI Edition (Ollama, Gemini, ChatGPT)
 """
 
 import json
@@ -29,9 +29,18 @@ AI_NAMES = {
     "F.R.I.D.A.Y. (Irish Female)": "F.R.I.D.A.Y.",
 }
 
-# Default settings - Gemini only!
+# AI Provider options
+AI_PROVIDER_OPTIONS = {
+    "offline": "🆓 Offline (Ollama) - No API Key",
+    "gemini": "🆓 Gemini 1.5 Flash - FREE Unlimited",
+    "openai": "💰 ChatGPT 4o-mini - Paid"
+}
+
+# Default settings
 DEFAULT_SETTINGS = {
+    "ai_provider": "offline",  # Default to offline (no API needed)
     "google_api_key": "",  # FREE Gemini API key
+    "openai_api_key": "",  # ChatGPT API key (paid)
     "openweather_api_key": "",
     "language": "en",
     "voice": "F.R.I.D.A.Y. (Irish Female)",
@@ -218,29 +227,67 @@ def show_settings_dialog(parent=None) -> bool:
     scroll_frame = ctk.CTkScrollableFrame(dialog, height=480)
     scroll_frame.pack(fill="both", expand=True, padx=20, pady=5)
     
-    # === API Keys Section (Gemini only - FREE!) ===
-    api_section = ctk.CTkLabel(scroll_frame, text="🔑 API Key (FREE!)", font=ctk.CTkFont(size=16, weight="bold"))
+    # === AI Provider Section ===
+    ai_section = ctk.CTkLabel(scroll_frame, text="🤖 AI Provider", font=ctk.CTkFont(size=16, weight="bold"))
+    ai_section.pack(anchor="w", pady=(10, 5))
+    
+    ai_frame = ctk.CTkFrame(scroll_frame)
+    ai_frame.pack(fill="x", pady=5)
+    
+    ctk.CTkLabel(ai_frame, text="Select AI Provider:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 3))
+    
+    # Provider selection
+    provider_map = {v: k for k, v in AI_PROVIDER_OPTIONS.items()}
+    current_provider = settings.get("ai_provider", "offline")
+    provider_display = AI_PROVIDER_OPTIONS.get(current_provider, AI_PROVIDER_OPTIONS["offline"])
+    provider_var = ctk.StringVar(value=provider_display)
+    
+    provider_menu = ctk.CTkOptionMenu(
+        ai_frame,
+        values=list(AI_PROVIDER_OPTIONS.values()),
+        variable=provider_var,
+        width=350
+    )
+    provider_menu.pack(anchor="w", padx=10, pady=(0, 5))
+    
+    # Provider info
+    provider_info = ctk.CTkLabel(
+        ai_frame, 
+        text="💡 Ollama = FREE offline AI | Gemini = FREE online | ChatGPT = Paid",
+        font=ctk.CTkFont(size=10),
+        text_color="#22c55e"
+    )
+    provider_info.pack(anchor="w", padx=10, pady=(0, 8))
+    
+    # === API Keys Section ===
+    api_section = ctk.CTkLabel(scroll_frame, text="🔑 API Keys", font=ctk.CTkFont(size=16, weight="bold"))
     api_section.pack(anchor="w", pady=(10, 5))
     
     api_frame = ctk.CTkFrame(scroll_frame)
     api_frame.pack(fill="x", pady=5)
     
     # Google Gemini API Key (FREE!)
-    ctk.CTkLabel(api_frame, text="Google Gemini API Key:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
-    ctk.CTkLabel(api_frame, text="🆓 Get your FREE key at ai.google.dev", font=ctk.CTkFont(size=11), text_color="#22c55e").pack(anchor="w", padx=10, pady=(0, 3))
+    ctk.CTkLabel(api_frame, text="Gemini API Key (FREE!):", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
+    ctk.CTkLabel(api_frame, text="🆓 Get FREE key at ai.google.dev", font=ctk.CTkFont(size=11), text_color="#22c55e").pack(anchor="w", padx=10, pady=(0, 3))
     gemini_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="AIzaSy...")
     gemini_entry.pack(padx=10, pady=(0, 5))
     if settings.get("google_api_key"):
         gemini_entry.insert(0, settings["google_api_key"])
     
-    # Help text
-    help_text = ctk.CTkLabel(
-        api_frame, 
-        text="Steps: 1) Go to ai.google.dev  2) Click 'Get API key'  3) Create key  4) Paste here",
-        font=ctk.CTkFont(size=10),
-        text_color="gray"
-    )
-    help_text.pack(anchor="w", padx=10, pady=(0, 8))
+    # OpenAI API Key (Paid)
+    ctk.CTkLabel(api_frame, text="OpenAI API Key (Paid):", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
+    ctk.CTkLabel(api_frame, text="💰 Get key at platform.openai.com (requires payment)", font=ctk.CTkFont(size=11), text_color="#f59e0b").pack(anchor="w", padx=10, pady=(0, 3))
+    openai_entry = ctk.CTkEntry(api_frame, width=440, placeholder_text="sk-...")
+    openai_entry.pack(padx=10, pady=(0, 5))
+    if settings.get("openai_api_key"):
+        openai_entry.insert(0, settings["openai_api_key"])
+    
+    # Ollama info
+    ollama_frame = ctk.CTkFrame(api_frame, fg_color="#1a365d")
+    ollama_frame.pack(fill="x", padx=10, pady=(8, 8))
+    ctk.CTkLabel(ollama_frame, text="🆓 Ollama (Recommended - FREE Offline AI)", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(8, 0))
+    ctk.CTkLabel(ollama_frame, text="No API key needed! Install from ollama.ai/download", font=ctk.CTkFont(size=11), text_color="#93c5fd").pack(anchor="w", padx=10, pady=(0, 3))
+    ctk.CTkLabel(ollama_frame, text="Then run: ollama pull llama3.2", font=ctk.CTkFont(size=10), text_color="#93c5fd").pack(anchor="w", padx=10, pady=(0, 8))
     
     # OpenWeather API Key (optional)
     ctk.CTkLabel(api_frame, text="OpenWeather API Key (optional):", font=ctk.CTkFont(size=12)).pack(anchor="w", padx=10, pady=(8, 3))
@@ -386,10 +433,16 @@ def show_settings_dialog(parent=None) -> bool:
     
     def save_and_close():
         gemini_key = gemini_entry.get().strip()
+        openai_key = openai_entry.get().strip()
         
         # Validate Gemini key format (should start with AIza)
         if gemini_key and not gemini_key.startswith("AIza"):
             error_label.configure(text="⚠️ Invalid Gemini key format (should start with 'AIza')")
+            return
+        
+        # Validate OpenAI key format (should start with sk-)
+        if openai_key and not openai_key.startswith("sk-"):
+            error_label.configure(text="⚠️ Invalid OpenAI key format (should start with 'sk-')")
             return
         
         try:
@@ -399,8 +452,14 @@ def show_settings_dialog(parent=None) -> bool:
         
         lang_reverse = {"English": "en", "Русский": "ru", "Auto-detect": "auto"}
         
+        # Get selected AI provider
+        selected_provider_display = provider_var.get()
+        selected_provider = provider_map.get(selected_provider_display, "offline")
+        
         # Save settings
+        settings["ai_provider"] = selected_provider
         settings["google_api_key"] = gemini_key
+        settings["openai_api_key"] = openai_key
         settings["openweather_api_key"] = weather_entry.get().strip()
         settings["voice"] = "F.R.I.D.A.Y. (Irish Female)"
         settings["ai_name"] = "F.R.I.D.A.Y."
@@ -410,25 +469,26 @@ def show_settings_dialog(parent=None) -> bool:
         settings["minimize_to_tray"] = tray_var.get()
         settings["notifications_enabled"] = notif_var.get()
         
-        # Apply Gemini key to environment
+        # Apply keys to environment
         if gemini_key:
             os.environ["GOOGLE_API_KEY"] = gemini_key
+        if openai_key:
+            os.environ["OPENAI_API_KEY"] = openai_key
         
         save_settings(settings)
         result["saved"] = True
         
-        # Show success and suggest restart if key was added
+        # Show success and suggest restart
         from tkinter import messagebox
-        if gemini_key:
-            restart = messagebox.askyesno(
-                "Settings Saved",
-                "Settings saved successfully!\n\nRestart F.R.I.D.A.Y. now to apply the new API key?",
-                icon='question'
-            )
-            if restart:
-                dialog.destroy()
-                restart_app()
-                return
+        restart = messagebox.askyesno(
+            "Settings Saved",
+            "Settings saved successfully!\n\nRestart F.R.I.D.A.Y. now to apply changes?",
+            icon='question'
+        )
+        if restart:
+            dialog.destroy()
+            restart_app()
+            return
         
         dialog.destroy()
     

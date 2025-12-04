@@ -3,7 +3,7 @@
 F.R.I.D.A.Y. - Female Replacement Intelligent Digital Assistant Youth
 Main entry point with integrated loading screen
 
-stable_v1.1.0 - Gemini Only Edition (FREE!)
+stable_v1.2.0 - Multi-AI Edition (Ollama, Gemini, ChatGPT)
 Optimized for Windows & Linux
 """
 

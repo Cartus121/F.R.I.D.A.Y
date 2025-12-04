@@ -3,9 +3,9 @@
 *Your personal AI assistant inspired by Iron Man*
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-stable--v1.1.0-purple?style=for-the-badge" alt="Version">
-  <img src="https://img.shields.io/badge/AI-Gemini%201.5%20Flash-green?style=for-the-badge" alt="AI">
-  <img src="https://img.shields.io/badge/Cost-FREE!-brightgreen?style=for-the-badge" alt="Cost">
+  <img src="https://img.shields.io/badge/Version-stable--v1.2.0-purple?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/AI-Multiple%20Providers-green?style=for-the-badge" alt="AI">
+  <img src="https://img.shields.io/badge/Cost-FREE%20Options!-brightgreen?style=for-the-badge" alt="Cost">
   <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge" alt="Python">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-orange?style=for-the-badge" alt="Platform">
 </p>
@@ -16,17 +16,45 @@
 
 ---
 
-## 🆓 100% FREE AI!
+## 🤖 Choose Your AI Provider
 
-F.R.I.D.A.Y. now uses **Google Gemini** - a powerful AI that's **completely FREE**!
+F.R.I.D.A.Y. supports **3 AI providers** - pick what works best for you!
+
+| Provider | Cost | Speed | Privacy | Setup |
+|----------|------|-------|---------|-------|
+| **🆓 Ollama (Recommended)** | FREE | Fast | 100% Private | Install app |
+| **🆓 Gemini 1.5 Flash** | FREE | Fast | Cloud | API key |
+| **💰 ChatGPT 4o-mini** | Paid | Fast | Cloud | API key |
+
+### Option 1: Ollama (FREE & Offline) ⭐ Recommended
+Works like ChatGPT but runs **locally on your PC** - no internet needed!
+
+1. Download Ollama from [ollama.ai/download](https://ollama.ai/download)
+2. Install and run it
+3. Open terminal and run: `ollama pull llama3.2`
+4. Start F.R.I.D.A.Y. - it will auto-detect Ollama!
+
+**Benefits:** FREE forever, works offline, 100% private, no rate limits
+
+### Option 2: Gemini (FREE Online)
+Google's AI - powerful and completely FREE!
 
 1. Go to [ai.google.dev](https://ai.google.dev/)
-2. Click "Get API key in Google AI Studio"
-3. Sign in with Google
-4. Create API key
-5. Add it in F.R.I.D.A.Y. Settings
+2. Click "Get API key"
+3. Create key (starts with "AIza...")
+4. Add in F.R.I.D.A.Y. Settings
 
-**No credit card required. No usage limits for personal use.**
+**Benefits:** FREE, no software install, Google-quality AI
+
+### Option 3: ChatGPT 4o-mini (Paid)
+OpenAI's latest efficient model.
+
+1. Go to [platform.openai.com](https://platform.openai.com/)
+2. Create account & add payment
+3. Generate API key (starts with "sk-...")
+4. Add in F.R.I.D.A.Y. Settings
+
+**Benefits:** OpenAI quality, very smart
 
 ---
 
